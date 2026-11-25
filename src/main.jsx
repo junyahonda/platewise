@@ -290,8 +290,8 @@ function App() {
     setSavedIds([]);
     setSavedPlaces([]);
     setMissingSavedIds([]);
-    savedStore.current.write([]);
-    setToast("Saved places cleared.");
+    const persisted = savedStore.current.write([]);
+    setToast(persisted ? "Saved places cleared." : "Cleared for this visit. Browser storage is off.");
   }
   const visible = (tab === "saved" ? savedPlaces : places)
     .filter(

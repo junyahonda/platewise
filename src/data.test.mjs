@@ -56,6 +56,13 @@ test("rate limiting imposes cooldown and recovers without automatic retries", as
   assert.equal(calls, 2);
 });
 
+test("saved listings get distances only when an explicit search center exists", async () => {
+  const client = createMapClient({ fetchImpl: async () => json({ elements: [element] }) });
+  assert.equal((await client.fetchSaved(["node-42"])).places[0].distance, null);
+  const saved = await client.fetchSaved(["node-42"], location);
+  assert.ok(saved.places[0].distance > 0 && saved.places[0].distance < 0.2);
+});
+
 test("network, malformed responses, and provider query failures have readable errors", async () => {
   for (const [fetchImpl, message] of [
     [async () => { throw new TypeError("Failed to fetch"); }, /connection/],

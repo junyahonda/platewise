@@ -140,6 +140,7 @@ function App() {
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   const [radius, setRadius] = useState(2),
+    [searchCenter, setSearchCenter] = useState(null),
     [area, setArea] = useState("Near your location"),
     [sort, setSort] = useState("value");
   const [valueOnly, setValueOnly] = useState(true),
@@ -224,6 +225,7 @@ function App() {
       });
       if (request !== requestRef.current) return;
       setPlaces(data.places);
+      setSearchCenter({ latitude: coords.latitude, longitude: coords.longitude });
       setArea(
         example ? "San Francisco · real places" : "Near your current location",
       );
@@ -273,7 +275,7 @@ function App() {
     }
     setLoading(true);
     try {
-      const data = await fetchSaved(savedIds);
+      const data = await fetchSaved(savedIds, searchCenter);
       if (request === requestRef.current) setSavedPlaces(data.places);
     } catch (e) {
       if (request === requestRef.current) setError(e.message);
@@ -503,11 +505,16 @@ function App() {
                 <span className="sr-only">Sort restaurants</span>
                 <select value={sort} onChange={(e) => setSort(e.target.value)}>
                   <option value="value">Value clues first</option>
-                  <option value="distance">Nearest first</option>
+                  <option value="distance" disabled={tab === "saved" && !searchCenter}>
+                    Nearest first
+                  </option>
                 </select>
                 <Icon as={ChevronDown} size={12} />
               </label>
             </div>
+            {tab === "saved" && !searchCenter && (
+              <p className="small-copy">Search nearby first to see saved-place distances.</p>
+            )}
             {tab === "saved" && error && (
               <div className="error-box" role="alert">
                 {error}

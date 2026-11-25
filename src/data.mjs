@@ -55,13 +55,13 @@ export function createMapClient({ fetchImpl = globalThis.fetch, now = Date.now,
       return { places: selectPlaces(result.elements, { latitude, longitude }, radius),
         scanned: result.elements.length, updated: result.osm3s?.timestamp_osm_base || null };
     },
-    async fetchSaved(ids) {
+    async fetchSaved(ids, center) {
       if (!Array.isArray(ids) || ids.length > 12 || ids.some(id =>
         typeof id !== "string" || !/^(node|way|relation)-[1-9]\d{0,15}$/.test(id)))
         throw Error("Please provide up to 12 valid saved places.");
       if (!ids.length) return { places: [] };
       const result = await overpass(savedQuery([...new Set(ids)]));
-      return { places: result.elements.map(e => normalizePlace(e)) };
+      return { places: result.elements.map(e => normalizePlace(e, center)) };
     },
   };
 }

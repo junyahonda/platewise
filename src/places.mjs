@@ -80,6 +80,10 @@ export function distanceKm(a, b) {
   );
   return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
+export function directionsUrl(location, center) {
+  if (!location) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${location.latitude},${location.longitude}${center ? `&origin=${center.latitude},${center.longitude}` : ""}`;
+}
 export function normalizePlace(element, center) {
   const tags = element.tags || {},
     latitude = element.lat ?? element.center?.lat,
@@ -106,8 +110,10 @@ export function normalizePlace(element, center) {
     tags.amenity === "food_court" ||
     tags.buffet === "yes" ||
     tags.all_you_can_eat === "yes";
-  const format = tags.amenity === "fast_food" ? "Fast-food" : tags.amenity === "food_court" ? "Food-court" : casual ? "Buffet" : null;
-  const valueHint = casual || cuisines.some((c) => CASUAL_CUISINES.has(c));
+  // Contradictory format tags must not turn a steakhouse into a value recommendation.
+  const formal = cuisines.some(c => ["steak_house", "steakhouse", "fine_dining"].includes(c)) || /\b(steakhouse|steak house|fine dining)\b/i.test(name);
+  const valueHint = !formal && (casual || cuisines.some((c) => CASUAL_CUISINES.has(c)));
+  const format = !valueHint ? null : tags.amenity === "fast_food" ? "Fast-food" : tags.amenity === "food_court" ? "Food-court" : casual ? "Buffet" : null;
   const location =
     Number.isFinite(latitude) && Number.isFinite(longitude)
       ? { latitude, longitude }
@@ -151,11 +157,11 @@ export function normalizePlace(element, center) {
         : "No useful value clue is mapped for this place.",
     hours: tags.opening_hours || null,
     sourceUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`,
-    mapsUrl: location
-      ? `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
-      : null,
+    mapsUrl: directionsUrl(location, center),
     closed:
       tags.disused === "yes" ||
+      tags.abandoned === "yes" || tags.demolished === "yes" ||
+      tags.closed === "yes" || tags.opening_hours === "closed" ||
       Boolean(
         tags["disused:amenity"] ||
           tags["abandoned:amenity"] ||
@@ -169,7 +175,7 @@ export function selectPlaces(elements, center, radius) {
     .filter(
       (p) =>
         p.name &&
-        p.meat &&
+        p.meatConfidence !== "excluded" &&
         !p.closed &&
         p.distance !== null &&
         p.distance <= radius,
@@ -186,8 +192,9 @@ export function selectPlaces(elements, center, radius) {
     if (
       !unique.some(
         (e) =>
-          e.name.toLowerCase() === p.name.toLowerCase() &&
-          distanceKm(e.location, p.location) < 0.06,
+          e.id === p.id || (e.name.trim().toLowerCase() === p.name.trim().toLowerCase() &&
+          (distanceKm(e.location, p.location) < 0.06 ||
+            (e.address !== "Street address not mapped" && e.address === p.address && distanceKm(e.location, p.location) < 0.25))),
       )
     )
       unique.push(p);
@@ -202,7 +209,7 @@ export function nearbyQuery(latitude, longitude, radius) {
   const deltaLon = maxLat >= 89.9 ? 180 : Math.min(180, radius / (111 * Math.cos(maxLat * Math.PI / 180)));
   const west = longitude - deltaLon, east = longitude + deltaLon;
   const boxes = deltaLon === 180 ? [[-180, 180]] : west < -180 ? [[west + 360, 180], [-180, east]] : east > 180 ? [[west, 180], [-180, east - 360]] : [[west, east]];
-  const clauses = boxes.map(([w,e]) => `nwr(${south.toFixed(6)},${w.toFixed(6)},${north.toFixed(6)},${e.toFixed(6)})["amenity"~"^(restaurant|fast_food|food_court)$"]["name"];`).join('');
+  const clauses = boxes.map(([w,e]) => `nwr(${south.toFixed(6)},${w.toFixed(6)},${north.toFixed(6)},${e.toFixed(6)})[~"^(amenity|shop)$"~"^(restaurant|fast_food|food_court|cafe|deli)$"]["name"];`).join('');
   return `[out:json][timeout:25];(${clauses});out tags center 500;`;
 }
 export function savedQuery(ids) {

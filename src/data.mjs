@@ -7,17 +7,20 @@ export const OVERPASS_URL = import.meta.env?.VITE_OVERPASS_URL ||
 // These polite per-tab limits are not a server-side security or billing control.
 export function createMapClient({ fetchImpl = globalThis.fetch, now = Date.now,
   endpoint = OVERPASS_URL, timeoutMs = 32000 } = {}) {
-  let busy = false, coolUntil = 0, day = "", count = 0, recent = [];
+  let busy = false, activeController = null, coolUntil = 0, day = "", count = 0, recent = [];
   async function overpass(query) {
     const time = now(), today = new Date(time).toISOString().slice(0, 10);
     if (day !== today) { day = today; count = 0; }
     recent = recent.filter(t => time - t < 15 * 60 * 1000);
-    if (busy || time < coolUntil)
-      throw Error("The map service is busy. Please wait a moment and try again.");
-    if (count >= 100 || recent.length >= 20)
-      throw Error("Please give the free map service a break and try again later.");
+    if (busy) throw Error("Another map request is still running. Cancel it or wait a moment.");
+    if (time < coolUntil)
+      throw Error(`The map service is busy. Retry in ${Math.ceil((coolUntil - time) / 1000)} seconds.`);
+    if (count >= 100) throw Error("This tab has reached its daily request limit. Retry after midnight UTC. Cached saved places are still available.");
+    if (recent.length >= 20)
+      throw Error(`This tab has reached its short-term request limit. Retry in ${Math.max(1, Math.ceil((recent[0] + 15 * 60000 - time) / 60000))} minutes. Cached saved places are still available.`);
     busy = true; count++; recent.push(time);
     const controller = new AbortController();
+    activeController = controller;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetchImpl(endpoint, {
@@ -28,7 +31,10 @@ export function createMapClient({ fetchImpl = globalThis.fetch, now = Date.now,
       });
       if (!response.ok) {
         if (response.status === 429 || response.status === 406) coolUntil = now() + 30000;
-        throw Error("The OpenStreetMap search service is busy. Please try again in a minute.");
+        if (response.status === 504) throw Error("The map service timed out (504). Retry or choose a smaller radius.");
+        throw Error(response.status === 429 || response.status === 406
+          ? "The map service is busy. Retry in 30 seconds."
+          : `The map service is unavailable (${response.status}). Please retry later.`);
       }
       let data;
       try { data = await response.json(); }
@@ -39,14 +45,23 @@ export function createMapClient({ fetchImpl = globalThis.fetch, now = Date.now,
         throw Error("The map service returned an incomplete response. Please try again later.");
       return data;
     } catch (error) {
+      if (controller.signal.reason === "cancelled") throw Error("Search cancelled.");
       if (controller.signal.aborted)
         throw Error("The map service didn’t respond in time. Please try again or choose a smaller radius.");
       if (error instanceof TypeError)
         throw Error("We couldn’t reach the map service. Check your connection and try again.");
       throw error;
-    } finally { clearTimeout(timer); busy = false; }
+    } finally {
+      clearTimeout(timer);
+      if (activeController === controller) { activeController = null; busy = false; }
+    }
   }
   return {
+    cancel() {
+      activeController?.abort("cancelled");
+      activeController = null;
+      busy = false;
+    },
     async searchNearby({ latitude, longitude, radius = 2 } = {}) {
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
           Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || ![2, 5, 10, 20].includes(radius))
@@ -67,4 +82,4 @@ export function createMapClient({ fetchImpl = globalThis.fetch, now = Date.now,
   };
 }
 
-export const { searchNearby, fetchSaved } = createMapClient();
+export const { searchNearby, fetchSaved, cancel: cancelMapRequest } = createMapClient();

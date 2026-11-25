@@ -11,6 +11,8 @@ Open port 3000. `npm start` only serves the built static files; no API routes.
 Use `npm run dev` for hot reloading. Deploy the `dist/` folder anywhere static.
 “Find food near me” requests location; “Explore San Francisco” searches a labeled
 example location using real data. Searches start at 2 km; wider areas can be slow.
+If GPS is denied, the manual form accepts coordinates from a map pin. City/ZIP
+geocoding and an in-app map are not included; search-area links open OpenStreetMap.
 
 ## Honest clues
 
@@ -19,15 +21,22 @@ The owner chose this no-key source with that tradeoff.
 
 - **Meat indicated:** meat-specific cuisine, name, or dietary map tags.
 - **Meat likely:** cuisines that commonly include meat; menus are unverified.
+- **Menu unknown:** other mapped food listings appear when filters allow them;
+  they are not meat recommendations. Clear filters to inspect sparse-area listings.
 - Mapped vegetarian-only/vegan-only places and `diet:meat=no` are excluded;
   vegetarian options alone do not exclude a place.
 - **Value guess:** fast-food/food-court/buffet formats or selected casual cuisines.
   This is not restaurant-specific evidence of price, portion size, or quality.
+  Steakhouse/fine-dining clues suppress format-based value guesses.
 - Mapped hours are not live opening status. Food art is illustrative, not photos.
 
 One search checks up to 500 named food places and shortlists up to 40 compatible
 places, deduplicating nearby same-name nodes/buildings. Coverage is not complete,
 especially in dense areas. Distances are straight-line, not travel distances.
+Queries include mapped delis and cafes; an unmapped business cannot be found.
+Directions use the last search coordinates as origin, explicitly labeled in the UI.
+The selected radius is a draft until Search; results label the last successful
+radius. Editing it cancels a pending search. Failures keep the previous shortlist.
 
 ## Provider and privacy
 
@@ -43,10 +52,15 @@ keys in `VITE_` variables, since their values are visible in browser code.
 No coordinates are persisted or sent to a Platewise server. The map provider
 receives the browser’s query, IP, and site origin and may retain request data.
 Hosting processes normal site requests. Only up to 12 saved OSM IDs persist in
-browser localStorage; Saved refreshes them in one batched query. No analytics or
+browser localStorage. Saved reuses in-memory listings during this visit and has
+an explicit refresh action; Discover filters never hide bookmarks. No analytics or
 advertising trackers. Data is **© OpenStreetMap contributors, ODbL**, with source
 links and attribution on every screen. Google Maps directions need no API key.
 Fonts are self-hosted with included OFL licenses.
+Tab links survive refresh and browser Back/Forward. Search coordinates/results
+are deliberately not persisted, so a full reload starts a new search session.
+Failed/cancelled provider attempts count toward request limits too, because they
+may already have reached the public service. Limit errors state the retry window.
 
 ## GitHub Pages
 

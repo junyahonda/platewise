@@ -148,3 +148,24 @@ test("nearby and saved queries are bounded and batched", () => {
   assert.match(q, /way\(id:34\)/);
   assert.match(q, /tags center 12/);
 });
+test("unknown menus remain available when filters are cleared without claiming meat", () => {
+  const result = selectPlaces([place({ cuisine: "", name: "The Summit Corral" })], center, 2);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].meatConfidence, "unknown");
+  assert.equal(result[0].meat, false);
+  assert.equal(result[0].valueHint, false);
+  assert.match(nearbyQuery(1, 2, 2), /cafe\|deli/);
+});
+test("Directions uses the explicit search origin rather than the external browser's location", () => {
+  const url = new URL(normalizePlace(place(), center).mapsUrl);
+  assert.equal(url.searchParams.get("origin"), "37.77,-122.42");
+  assert.equal(url.searchParams.get("destination"), "37.775,-122.42");
+  assert.equal(new URL(normalizePlace(place()).mapsUrl).searchParams.has("origin"), false);
+});
+test("formal cuisine overrides misleading fast-food value tags", () => {
+  for (const tags of [{ cuisine: "steak_house" }, { name: "Bobby Van’s Steakhouse", cuisine: "burger" }]) {
+    const result = normalizePlace(place({ amenity: "fast_food", ...tags }));
+    assert.equal(result.valueHint, false);
+    assert.equal(result.valueLabel, "Value unknown");
+  }
+});

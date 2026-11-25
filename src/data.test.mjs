@@ -49,7 +49,7 @@ test("rate limiting imposes cooldown and recovers without automatic retries", as
     calls++; return calls === 1 ? new Response("busy", { status: 429 }) : json({ elements: [] });
   }});
   await assert.rejects(client.searchNearby(location), /busy/);
-  await assert.rejects(client.searchNearby(location), /wait a moment/);
+  await assert.rejects(client.searchNearby(location), /30 seconds/);
   assert.equal(calls, 1);
   time += 30001;
   assert.deepEqual((await client.searchNearby(location)).places, []);
@@ -83,7 +83,29 @@ test("concurrent requests are rejected and timeout releases the client", async (
   const client = createMapClient({ timeoutMs: 5, fetchImpl: (_url, { signal }) =>
     new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true })) });
   const first = client.searchNearby(location);
-  await assert.rejects(client.searchNearby(location), /wait a moment/);
+  await assert.rejects(client.searchNearby(location), /still running/);
   await assert.rejects(first, /didn’t respond in time/);
   await assert.rejects(client.searchNearby(location), /didn’t respond in time/);
+});
+test("cancel frees the client for navigation and old cleanup cannot release a newer request", async () => {
+  let calls = 0;
+  const client = createMapClient({ fetchImpl: (_url, { signal }) => {
+    calls++;
+    if (calls > 1) return Promise.resolve(json({ elements: [element] }));
+    return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+  }});
+  const first = client.searchNearby(location);
+  client.cancel();
+  const second = client.searchNearby(location);
+  await assert.rejects(first, /cancelled/);
+  assert.equal((await second).places.length, 1);
+});
+test("gateway timeouts and request caps explain the cause and recovery", async () => {
+  await assert.rejects(createMapClient({ fetchImpl: async () => new Response("timeout", { status: 504 }) }).searchNearby(location), /timed out.*504.*smaller radius/);
+  let time = Date.now();
+  const client = createMapClient({ now: () => time, fetchImpl: async () => json({ elements: [] }) });
+  for (let i = 0; i < 20; i++) await client.searchNearby(location);
+  await assert.rejects(client.searchNearby(location), /15 minutes/);
+  time += 15 * 60000;
+  assert.equal((await client.searchNearby(location)).places.length, 0);
 });

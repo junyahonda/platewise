@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import "./results.css";
-import { searchNearby, fetchSaved } from "./data.mjs";
+import { searchNearby, fetchSaved, cancelMapRequest } from "./data.mjs";
+import { distanceKm, directionsUrl } from "./places.mjs";
 import { SAVED_KEY, createSavedStore, changeBookmark } from "./saves.mjs";
 import { currentLocation } from "./location.mjs";
 
@@ -134,8 +135,12 @@ function PlateArt() {
   );
 }
 
+function currentTab() {
+  const tab = location.hash.slice(1);
+  return ["discover", "saved", "about"].includes(tab) ? tab : "discover";
+}
 function App() {
-  const [tab, setTab] = useState("discover"),
+  const [tab, setTab] = useState(currentTab),
     [places, setPlaces] = useState([]),
     [searched, setSearched] = useState(false),
     [loading, setLoading] = useState(false),
@@ -143,6 +148,7 @@ function App() {
     [lastLookup, setLastLookup] = useState(null),
     [error, setError] = useState("");
   const [radius, setRadius] = useState(2),
+    [appliedRadius, setAppliedRadius] = useState(null),
     [searchCenter, setSearchCenter] = useState(null),
     [area, setArea] = useState("Near your location"),
     [sort, setSort] = useState("value");
@@ -153,6 +159,9 @@ function App() {
     [savedPlaces, setSavedPlaces] = useState([]),
     [missingSavedIds, setMissingSavedIds] = useState([]),
     [toast, setToast] = useState("");
+  const [standalone, setStandalone] = useState(() => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true);
+  const knownPlaces = useRef(new Map());
+  const lastSearchInput = useRef({ example: false, manual: null });
   const savedStore = useRef(null);
   if (!savedStore.current) savedStore.current = createSavedStore();
   const [savedIds, setSavedIds] = useState(() => savedStore.current.read());
@@ -164,7 +173,25 @@ function App() {
     [installEvent, setInstallEvent] = useState(null);
   const dialogRef = useRef(null),
     requestRef = useRef(0),
+    errorRef = useRef(null),
     resultsRef = useRef(null);
+  useEffect(() => {
+    const mode = matchMedia("(display-mode: standalone)");
+    const update = () => setStandalone(mode.matches || navigator.standalone === true);
+    const installed = () => setStandalone(true);
+    mode.addEventListener("change", update);
+    window.addEventListener("appinstalled", installed);
+    return () => { mode.removeEventListener("change", update); window.removeEventListener("appinstalled", installed); };
+  }, []);
+  useEffect(() => {
+    const pop = () => navigate(currentTab(), { fromHistory: true });
+    window.addEventListener("popstate", pop);
+    return () => window.removeEventListener("popstate", pop);
+  }, [savedIds, searchCenter]);
+  useEffect(() => { if (tab === "saved") navigate("saved", { fromHistory: true }); }, []);
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ block: "center", behavior: "instant" });
+  }, [error]);
   useEffect(() => {
     const sync = (event) => {
       if (event.key !== SAVED_KEY && event.key !== null) return;
@@ -193,27 +220,33 @@ function App() {
     const t = setTimeout(() => setToast(""), 3500);
     return () => clearTimeout(t);
   }, [toast]);
-  async function search(example = false) {
+  async function search(example = false, manual = null) {
+    cancelMapRequest();
     const request = ++requestRef.current;
+    const requestedRadius = radius;
+    lastSearchInput.current = { example, manual };
     setError("");
     setLoading(true);
     setSearchExample(example);
     setTab("discover");
     try {
       let coords;
-      if (example) coords = { latitude: 37.7599, longitude: -122.4148 };
+        if (manual) coords = manual;
+        else if (example) coords = { latitude: 37.7599, longitude: -122.4148 };
       else coords = await currentLocation();
       if (request !== requestRef.current) return;
       const data = await searchNearby({
         latitude: coords.latitude,
         longitude: coords.longitude,
-        radius,
+          radius: requestedRadius,
       });
       if (request !== requestRef.current) return;
       setPlaces(data.places);
+      for (const place of data.places) knownPlaces.current.set(place.id, place);
+      setAppliedRadius(requestedRadius);
       setSearchCenter({ latitude: coords.latitude, longitude: coords.longitude });
       setArea(
-        example ? "San Francisco · real places" : "Near your current location",
+        manual ? "Chosen coordinates" : example ? "San Francisco · real places" : "Near your current location",
       );
       setSearched(true);
       setLastLookup(new Date());
@@ -234,6 +267,7 @@ function App() {
     }
   }
   function toggleSave(p) {
+    if (p.name) knownPlaces.current.set(p.id, p);
     const current = savedStore.current.read();
     const save = !savedIds.includes(p.id);
     if (save && !current.includes(p.id) && current.length >= 12) {
@@ -248,8 +282,20 @@ function App() {
       setToast("Browser storage is off. Saves will last only this visit.");
     }
   }
-  async function navigate(next) {
+  function cancelSearch() {
+    ++requestRef.current;
+    cancelMapRequest();
+    setLoading(false);
+  }
+  function changeRadius(next) {
+    cancelSearch();
+    setRadius(next);
+    setError("");
+  }
+  async function navigate(next, { fromHistory = false, refresh = false } = {}) {
     const request = ++requestRef.current;
+    cancelMapRequest();
+    if (!fromHistory && next !== tab) history.pushState(null, "", `#${next}`);
     setTab(next);
     setLoading(false);
     setError("");
@@ -261,10 +307,19 @@ function App() {
       setMissingSavedIds([]);
       return;
     }
+    const cached = savedIds.map(id => knownPlaces.current.get(id)).filter(Boolean).map(p => ({
+      ...p,
+      distance: searchCenter && p.location ? distanceKm(searchCenter, p.location) : null,
+      mapsUrl: directionsUrl(p.location, searchCenter),
+    }));
+    setSavedPlaces(cached);
+    setMissingSavedIds([]);
+    if (!refresh && cached.length === savedIds.length) return;
     setLoading(true);
     try {
       const data = await fetchSaved(savedIds, searchCenter);
       if (request === requestRef.current) {
+        for (const place of data.places) knownPlaces.current.set(place.id, place);
         const activeIds = savedStore.current.read();
         setSavedPlaces(data.places.filter(p => activeIds.includes(p.id)));
         setMissingSavedIds((data.missingIds || []).filter(id => activeIds.includes(id)));
@@ -284,6 +339,7 @@ function App() {
   function clearSaves() {
     if (tab === "saved") {
       ++requestRef.current;
+      cancelMapRequest();
       setLoading(false);
       setError("");
     }
@@ -296,9 +352,9 @@ function App() {
   const visible = (tab === "saved" ? savedPlaces : places)
     .filter(
       (p) =>
-        (!valueOnly || p.valueHint) &&
+        tab === "saved" || ((!valueOnly || p.valueHint) &&
         (!meatOnly || p.meatConfidence === "indicated") &&
-        (!takeawayOnly || p.takeaway),
+        (!takeawayOnly || p.takeaway)),
     )
     .sort((a, b) =>
       sort === "distance"
@@ -309,23 +365,23 @@ function App() {
           (a.distance ?? Infinity) - (b.distance ?? Infinity),
     );
   const filterCount =
-    Number(valueOnly) + Number(meatOnly) + Number(takeawayOnly);
+    tab === "saved" ? 0 : Number(valueOnly) + Number(meatOnly) + Number(takeawayOnly);
   return (
     <div className="app-shell">
       <header className="header">
-        <a href="/" className="wordmark" aria-label="Platewise home">
+        <a href="#discover" onClick={e => { e.preventDefault(); navigate("discover"); }} className="wordmark" aria-label="Platewise home">
           <span className="logo-mark">
             <Icon as={Utensils} size={21} />
           </span>
           platewise<span className="wordmark-dot">.</span>
         </a>
-        <button
+        {!standalone && <button
           className="icon-button"
           aria-label="Add Platewise to your home screen"
           onClick={install}
         >
           <Icon as={Smartphone} />
-        </button>
+        </button>}
       </header>
       <main>
         <div className="sr-only" role="status" aria-live="polite">
@@ -377,7 +433,7 @@ function App() {
                   <span className="sr-only">Search radius</span>
                   <select
                     value={radius}
-                    onChange={(e) => setRadius(Number(e.target.value))}
+                    onChange={(e) => changeRadius(Number(e.target.value))}
                   >
                     {[2, 5, 10, 20].map((n) => (
                       <option key={n} value={n}>
@@ -400,6 +456,7 @@ function App() {
                 {loading && !searchExample ? "Finding nearby places…" : "Find food near me"}
                 {!loading && <Icon as={ArrowRight} size={19} />}
               </button>
+              {loading && <button className="text-button" onClick={cancelSearch}>Cancel search</button>}
               <div className="preview-link">
               <button
                 className="text-button"
@@ -410,17 +467,30 @@ function App() {
                 <Icon as={loading && searchExample ? LoaderCircle : ArrowRight} className={loading && searchExample ? "spin" : ""} size={15} />
               </button>
               </div>
+              <details className="manual-location">
+                <summary>Search another location without GPS</summary>
+                <p className="small-copy">Enter latitude and longitude from a map pin. No location permission needed.</p>
+                <form onSubmit={e => {
+                  e.preventDefault();
+                  const data = new FormData(e.currentTarget);
+                  search(false, { latitude: Number(data.get("latitude")), longitude: Number(data.get("longitude")) });
+                }}>
+                  <label>Latitude<input name="latitude" type="number" step="any" min="-90" max="90" placeholder="47.32" required /></label>
+                  <label>Longitude<input name="longitude" type="number" step="any" min="-180" max="180" placeholder="-106.91" required /></label>
+                  <button className="text-button" disabled={loading}>Search these coordinates</button>
+                </form>
+              </details>
               <p className="privacy-hint">
                 Your location is used for this search, never saved.
               </p>
             </section>
             {error && (
-              <div className="error-box" role="alert">
+              <div className="error-box" role="alert" ref={errorRef}>
                 <Icon as={Info} />
                 <div>
                   <p>{error}</p>
                   {searched && <p>Previous successful results are kept below.</p>}
-                  <button className="text-button" disabled={loading} onClick={() => search(searchExample)}>Try this search again</button>
+                  <button className="text-button" disabled={loading} onClick={() => search(lastSearchInput.current.example, lastSearchInput.current.manual)}>Try this search again</button>
                 </div>
               </div>
             )}
@@ -490,26 +560,29 @@ function App() {
                 <h2>
                   {tab === "saved" && loading
                     ? `${savedIds.length} saved ${savedIds.length === 1 ? "place" : "places"}`
-                    : `${visible.length} ${visible.length === 1 ? "possible find" : "possible finds"}`}
+                    : tab === "saved" && error && !visible.length ? "Saved listings unavailable" : `${visible.length} ${visible.length === 1 ? "possible find" : "possible finds"}`}
                   <span className="result-dot">.</span>
                 </h2>
               </div>
-              <button
+              {tab === "discover" && <button
                 className={`filter-button ${filterCount ? "active" : ""}`}
                 onClick={() => setDialog("filters")}
               >
                 <Icon as={SlidersHorizontal} size={17} />
                 Filters{filterCount > 0 && <span>{filterCount}</span>}
-              </button>
+              </button>}
             </div>
             {filterCount > 0 && (
               <p className="active-filters">Showing: {[valueOnly && "value clues", meatOnly && "stronger meat clues", takeawayOnly && "takeaway"].filter(Boolean).join(" · ")}</p>
             )}
             {tab === "discover" && lastLookup && <p className="small-copy">Last lookup: {lastLookup.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. At most 40 places shortlisted.</p>}
+            {tab === "discover" && <p className="small-copy">Showing the last successful {appliedRadius} km search.{radius !== appliedRadius && ` Radius changed to ${radius} km — search again to apply it.`}</p>}
+            {searchCenter && <a className="text-button" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/#map=14/${searchCenter.latitude}/${searchCenter.longitude}`}>View search area on a map <Icon as={ExternalLink} size={14} /></a>}
             {tab === "saved" && searchCenter && <p className="small-copy">Distances from your last search: {area}.</p>}
+            {tab === "saved" && <p className="small-copy">All bookmarks shown. Discover filters do not apply. Listings may be outdated; refresh to check the map again.</p>}
             <div className="results-meta">
               <span>
-                <Icon as={Utensils} size={13} /> Meat clues included
+                <Icon as={Utensils} size={13} /> {tab === "saved" ? "Your bookmarks" : "Menu clues, not verified menus"}
               </span>
               <label>
                 <Icon as={ArrowDownWideNarrow} size={14} />
@@ -527,8 +600,10 @@ function App() {
               <p className="small-copy">Search nearby first to see saved-place distances.</p>
             )}
             {tab === "saved" && error && (
-              <div className="error-box" role="alert">
-                {error}
+              <div className="error-box" role="alert" ref={errorRef}>
+                <div><strong>Saved listings could not be refreshed.</strong><p>{error}</p>
+                <p>Your bookmarks are kept.{visible.length > 0 && " Last loaded listings remain below."}</p>
+                <button className="text-button" onClick={() => navigate("saved", { refresh: true })}>Retry saved listings</button></div>
               </div>
             )}
             {tab === "saved" && !loading && missingSavedIds.length > 0 && (
@@ -542,7 +617,7 @@ function App() {
                 ))}
               </div>
             )}
-            {loading && tab === "saved" ? (
+            {loading && tab === "saved" && !visible.length ? (
               <div className="empty-state" role="status">
                 <Icon as={LoaderCircle} className="spin" />
                 <h3>Refreshing saved places…</h3>
@@ -593,7 +668,7 @@ function App() {
                       <span>
                         <Icon as={Utensils} size={12} />
                           {!p.meat
-                            ? "Not a meat match"
+                            ? p.meatConfidence === "excluded" ? "Not a meat match" : "Menu unknown"
                             : p.meatConfidence === "indicated"
                               ? "Meat indicated"
                               : "Meat likely"}
@@ -609,7 +684,7 @@ function App() {
                     </div>
                     <p className="value-explanation">{p.valueReason}</p>
                     <p className="unverified-note">
-                      Prices & portion sizes unverified.
+                      Prices, portions & current business status unverified.
                     </p>
                     <p className="mapped-hours">{p.hours ? `Mapped hours: ${p.hours} — not a live open/closed check.` : "Hours not mapped. Check before going."}</p>
                     <div className="card-actions">
@@ -636,7 +711,7 @@ function App() {
                           rel="noreferrer"
                           aria-label={`Directions to ${p.name}`}
                         >
-                          Directions <Icon as={ExternalLink} size={14} />
+                          {searchCenter ? "Directions from search area" : "Directions · choose origin"} <Icon as={ExternalLink} size={14} />
                         </a>
                       )}
                     </div>
@@ -668,7 +743,7 @@ function App() {
                 ))}
               </div>
             )}
-            {!visible.length && !loading && (
+            {!visible.length && !loading && !(tab === "saved" && error) && (
               <div className="empty-state">
                 <Icon as={tab === "saved" ? Bookmark : Compass} size={32} />
                 <h3>
@@ -679,7 +754,10 @@ function App() {
                 <p>
                   {tab === "saved" && !savedIds.length
                     ? "Tap a restaurant’s bookmark to save it here."
-                    : "Try clearing filters or searching a wider area. Map tags can be incomplete."}
+                    : tab === "saved" ? "Some mapped listings may be unavailable. Remove unavailable bookmarks or retry the refresh."
+                      : filterCount ? "Clear filters to include mapped places without these clues."
+                      : appliedRadius < 20 ? "No mapped matches in this area. Try a wider radius or check a map; community coverage is incomplete."
+                      : "No mapped matches within 20 km. This is not proof there is no food nearby. Check a map or another source."}
                 </p>
                 {tab === "saved" && !savedIds.length ? (
                   <button className="text-button" onClick={() => navigate("discover")}>Find restaurants</button>
@@ -696,6 +774,9 @@ function App() {
                   </button>
                 )}
               </div>
+            )}
+            {tab === "saved" && savedIds.length > 0 && !loading && (
+              <button className="text-button" onClick={() => navigate("saved", { refresh: true })}>Refresh saved listings</button>
             )}
             {tab === "saved" && savedIds.length > 0 && !loading && (
               <button className="text-button" onClick={clearSaves}>
@@ -728,11 +809,11 @@ function App() {
               <span>How we pick places</span>
               <Icon as={ArrowRight} />
             </button>
-            <button className="about-row" onClick={install}>
+            {!standalone && <button className="about-row" onClick={install}>
               <Icon as={Smartphone} />
               <span>Add to your home screen</span>
               <Icon as={Plus} />
-            </button>
+            </button>}
             <button className="about-row" onClick={() => setDialog("privacy")}>
               <Icon as={Heart} />
               <span>Privacy & terms</span>
@@ -790,7 +871,7 @@ function App() {
       )}
       <dialog
         ref={dialogRef}
-        aria-label={{ install: "Add Platewise to your home screen", method: "How we pick places", privacy: "Privacy and terms", filters: "Filter restaurants" }[dialog] || "Platewise"}
+        aria-labelledby="dialog-title"
         onCancel={() => setDialog(null)}
         onClick={(e) => {
           if (e.target === dialogRef.current) setDialog(null);
@@ -812,7 +893,7 @@ function App() {
               <span className="dialog-illustration">
                 <Icon as={Smartphone} size={36} />
               </span>
-              <h2>
+              <h2 id="dialog-title">
                 A good find.
                 <br />
                 One tap away.
@@ -847,7 +928,7 @@ function App() {
           )}
           {dialog === "method" && (
             <>
-              <h2>
+              <h2 id="dialog-title">
                 Good clues.
                 <br />
                 No magic score.
@@ -858,6 +939,7 @@ function App() {
                 or a restaurant name. “Meat likely” comes from cuisines that
                 commonly serve meat. We exclude mapped vegetarian-only and
                 vegan-only places. Neither label verifies the current menu.
+                Clear Discover filters to see other mapped food places labeled “Menu unknown”; these are not meat recommendations.
               </p>
               <h3>Value is a guess.</h3>
               <p>
@@ -885,7 +967,7 @@ function App() {
           )}
           {dialog === "privacy" && (
             <>
-              <h2>
+              <h2 id="dialog-title">
                 Your location.
                 <br />
                 Just for lunch.
@@ -901,7 +983,7 @@ function App() {
               </p>
               <p>
                 Saved place IDs stay in this browser. They do not sync across
-                devices. Opening Saved fetches fresh map listings. No analytics
+                devices. Previously loaded listings are kept in memory for this visit; refresh Saved to check the map again. No analytics
                 or advertising trackers are included.
               </p>
               <h3>Terms & data</h3>
@@ -951,7 +1033,7 @@ function App() {
           )}
           {dialog === "filters" && (
             <>
-              <h2>Your kind of find.</h2>
+              <h2 id="dialog-title">Your kind of find.</h2>
               <p>Filters narrow this shortlist, without another search.</p>
               {[
                 [
@@ -989,7 +1071,7 @@ function App() {
                 className="primary-button"
                 onClick={() => setDialog(null)}
               >
-                Show {visible.length} finds <Icon as={ArrowRight} size={18} />
+                Show {visible.length} {visible.length === 1 ? "find" : "finds"} <Icon as={ArrowRight} size={18} />
               </button>
             </>
           )}

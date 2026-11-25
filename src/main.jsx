@@ -148,6 +148,7 @@ function App() {
     [takeawayOnly, setTakeawayOnly] = useState(false);
   const [expanded, setExpanded] = useState(null),
     [savedPlaces, setSavedPlaces] = useState([]),
+    [missingSavedIds, setMissingSavedIds] = useState([]),
     [toast, setToast] = useState("");
   const [savedIds, setSavedIds] = useState(() => readSavedIds() ?? []);
   const [dialog, setDialog] = useState(
@@ -166,6 +167,7 @@ function App() {
       if (!ids) return;
       setSavedIds(ids);
       setSavedPlaces(current => current.filter(p => ids.includes(p.id)));
+      setMissingSavedIds(current => current.filter(id => ids.includes(id)));
     };
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
@@ -255,6 +257,7 @@ function App() {
     const next = changeBookmark(current, p.id, save);
     setSavedIds(next);
     setSavedPlaces((current) => current.filter((p) => next.includes(p.id)));
+    setMissingSavedIds(current => current.filter(id => next.includes(id)));
     try {
       localStorage.setItem(SAVED_KEY, JSON.stringify(next));
     } catch {
@@ -271,12 +274,16 @@ function App() {
     if (next !== "saved") return;
     if (!savedIds.length) {
       setSavedPlaces([]);
+      setMissingSavedIds([]);
       return;
     }
     setLoading(true);
     try {
       const data = await fetchSaved(savedIds, searchCenter);
-      if (request === requestRef.current) setSavedPlaces(data.places);
+      if (request === requestRef.current) {
+        setSavedPlaces(data.places);
+        setMissingSavedIds(data.missingIds || []);
+      }
     } catch (e) {
       if (request === requestRef.current) setError(e.message);
     } finally {
@@ -292,6 +299,7 @@ function App() {
   function clearSaves() {
     setSavedIds([]);
     setSavedPlaces([]);
+    setMissingSavedIds([]);
     try {
       localStorage.removeItem(SAVED_KEY);
     } catch {}
@@ -518,6 +526,17 @@ function App() {
             {tab === "saved" && error && (
               <div className="error-box" role="alert">
                 {error}
+              </div>
+            )}
+            {tab === "saved" && !loading && missingSavedIds.length > 0 && (
+              <div className="error-box" role="status">
+                <strong>Some saved listings are unavailable.</strong>
+                <p>You can remove them to free up saved places.</p>
+                {missingSavedIds.map(id => (
+                  <button className="text-button" key={id} onClick={() => toggleSave({ id })}>
+                    Remove unavailable listing ({id})
+                  </button>
+                ))}
               </div>
             )}
             {loading && tab === "saved" ? (

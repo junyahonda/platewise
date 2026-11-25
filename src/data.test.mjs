@@ -63,6 +63,13 @@ test("saved listings get distances only when an explicit search center exists", 
   assert.ok(saved.places[0].distance > 0 && saved.places[0].distance < 0.2);
 });
 
+test("deleted saved listings are returned as removable missing IDs", async () => {
+  const client = createMapClient({ fetchImpl: async () => json({ elements: [element] }) });
+  const saved = await client.fetchSaved(["node-42", "node-99"]);
+  assert.deepEqual(saved.missingIds, ["node-99"]);
+  assert.equal(saved.places[0].id, "node-42");
+});
+
 test("network, malformed responses, and provider query failures have readable errors", async () => {
   for (const [fetchImpl, message] of [
     [async () => { throw new TypeError("Failed to fetch"); }, /connection/],

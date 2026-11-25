@@ -61,7 +61,8 @@ export function createMapClient({ fetchImpl = globalThis.fetch, now = Date.now,
         throw Error("Please provide up to 12 valid saved places.");
       if (!ids.length) return { places: [] };
       const result = await overpass(savedQuery([...new Set(ids)]));
-      return { places: result.elements.map(e => normalizePlace(e, center)) };
+      const places = result.elements.map(e => normalizePlace(e, center));
+      return { places, missingIds: [...new Set(ids)].filter(id => !places.some(p => p.id === id)) };
     },
   };
 }

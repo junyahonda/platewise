@@ -129,10 +129,14 @@ export function normalizePlace(element, center) {
         .filter(Boolean)
         .join(", ") || "Street address not mapped",
     meat: !plantOnly && (explicit || likely),
-    meatConfidence: explicit ? "indicated" : "likely",
-    meatReason: explicit
-      ? "Meat is indicated by cuisine, name, or dietary map tags."
-      : "This cuisine commonly includes meat, but this menu has not been checked.",
+    meatConfidence: plantOnly ? "excluded" : explicit ? "indicated" : likely ? "likely" : "unknown",
+    meatReason: plantOnly
+      ? "Map tags or the name now indicate a plant-only place or no meat."
+      : explicit
+        ? "Meat is indicated by cuisine, name, or dietary map tags."
+        : likely
+          ? "This cuisine commonly includes meat, but this menu has not been checked."
+          : "There is no useful meat clue in the current map listing.",
     valueHint,
     casual,
     takeaway:

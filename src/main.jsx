@@ -589,9 +589,11 @@ function App() {
                     <div className="evidence-tags">
                       <span>
                         <Icon as={Utensils} size={12} />
-                        {p.meatConfidence === "indicated"
-                          ? "Meat indicated"
-                          : "Meat likely"}
+                          {!p.meat
+                            ? "Not a meat match"
+                            : p.meatConfidence === "indicated"
+                              ? "Meat indicated"
+                              : "Meat likely"}
                       </span>
                       {p.valueHint ? (
                         <span>

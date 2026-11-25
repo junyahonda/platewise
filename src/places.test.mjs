@@ -54,6 +54,20 @@ test("vegetarian options do not exclude meat, but vegetarian-only does", () => {
 });
 test("missing cuisine is unknown, not a meat claim", () =>
   assert.equal(normalizePlace(place({ cuisine: "" })).meat, false));
+test("plant-only saved listings cannot carry a stronger meat claim", () => {
+  for (const tags of [
+    { cuisine: "burger", "diet:vegan": "only" },
+    { cuisine: "burger", "diet:meat": "no" },
+    { name: "Vegan Burger" },
+    { cuisine: "chicken;vegetarian" },
+  ]) {
+    const p = normalizePlace(place(tags));
+    assert.equal(p.meat, false);
+    assert.equal(p.meatConfidence, "excluded");
+    assert.match(p.meatReason, /plant-only|no meat/);
+  }
+  assert.equal(normalizePlace(place({ cuisine: "" })).meatConfidence, "unknown");
+});
 test("value is a heuristic; no ratings, prices or portion evidence invented", () => {
   const p = normalizePlace(place());
   assert.equal(p.valueHint, true);

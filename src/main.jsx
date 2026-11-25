@@ -319,6 +319,7 @@ function App() {
     try {
       const data = await fetchSaved(savedIds, searchCenter);
       if (request === requestRef.current) {
+        for (const id of data.missingIds || []) knownPlaces.current.delete(id);
         for (const place of data.places) knownPlaces.current.set(place.id, place);
         const activeIds = savedStore.current.read();
         setSavedPlaces(data.places.filter(p => activeIds.includes(p.id)));

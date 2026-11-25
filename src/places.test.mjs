@@ -76,6 +76,14 @@ test("value is a heuristic; no ratings, prices or portion evidence invented", ()
   assert.equal(p.portion, undefined);
   assert.match(p.valueReason, /guess/);
 });
+test("value labels name mapped formats and strong meat clues outrank broad cuisine guesses", () => {
+  const burger = place({ name: "Burger Kitchen", amenity: "fast_food", cuisine: "burger" }, { id: 1, lat: 37.778 });
+  const sandwich = place({ name: "Juice & Sandwich", amenity: "fast_food", cuisine: "sandwich" }, { id: 2, lat: 37.771 });
+  assert.deepEqual(selectPlaces([sandwich, burger], center, 2).map(p => p.id), ["node-1", "node-2"]);
+  assert.equal(normalizePlace(burger).valueLabel, "Fast-food clue");
+  assert.equal(normalizePlace(place({ amenity: "restaurant", buffet: "yes" })).valueLabel, "Buffet clue");
+  assert.equal(normalizePlace(place({ amenity: "restaurant" })).valueLabel, "Casual-cuisine clue");
+});
 test("way and relation center coordinates work", () => {
   const p = normalizePlace(
     place(

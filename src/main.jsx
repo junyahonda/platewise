@@ -301,6 +301,7 @@ function App() {
       sort === "distance"
         ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
         : Number(b.valueHint) - Number(a.valueHint) ||
+          Number(b.meatConfidence === "indicated") - Number(a.meatConfidence === "indicated") ||
           Number(b.casual) - Number(a.casual) ||
           (a.distance ?? Infinity) - (b.distance ?? Infinity),
     );
@@ -583,7 +584,7 @@ function App() {
                       {p.valueHint ? (
                         <span>
                           <Icon as={Sparkles} size={12} />
-                          Value guess
+                          {p.valueLabel}
                         </span>
                       ) : (
                         <span>Value unknown</span>
@@ -838,7 +839,8 @@ function App() {
               <h3>Value is a guess.</h3>
               <p>
                 Fast food, food courts, buffets, and selected casual cuisines
-                get a value clue. They come first; nearer places break ties. A
+                get a value clue. Those places come first, then stronger meat clues,
+                casual formats, and distance. A
                 value clue says nothing certain about this restaurant’s quality,
                 price, or portion size.
               </p>

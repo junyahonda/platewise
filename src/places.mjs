@@ -106,6 +106,7 @@ export function normalizePlace(element, center) {
     tags.amenity === "food_court" ||
     tags.buffet === "yes" ||
     tags.all_you_can_eat === "yes";
+  const format = tags.amenity === "fast_food" ? "Fast-food" : tags.amenity === "food_court" ? "Food-court" : casual ? "Buffet" : null;
   const valueHint = casual || cuisines.some((c) => CASUAL_CUISINES.has(c));
   const location =
     Number.isFinite(latitude) && Number.isFinite(longitude)
@@ -138,12 +139,13 @@ export function normalizePlace(element, center) {
           ? "This cuisine commonly includes meat, but this menu has not been checked."
           : "There is no useful meat clue in the current map listing.",
     valueHint,
+    valueLabel: format ? `${format} clue` : valueHint ? "Casual-cuisine clue" : "Value unknown",
     casual,
     takeaway:
       tags.takeaway !== "no" &&
       (["yes", "only"].includes(tags.takeaway) || tags.amenity === "fast_food"),
-    valueReason: casual
-      ? "A fast-food, food-court, or buffet format is a possible value clue."
+    valueReason: format
+      ? `Mapped as ${format.toLowerCase()}. That format can suggest value, but prices and portions have not been checked.`
       : valueHint
         ? "This cuisine can offer filling casual meals. That is a general guess, not evidence about this restaurant."
         : "No useful value clue is mapped for this place.",
@@ -175,6 +177,7 @@ export function selectPlaces(elements, center, radius) {
     .sort(
       (a, b) =>
         Number(b.valueHint) - Number(a.valueHint) ||
+        Number(b.meatConfidence === "indicated") - Number(a.meatConfidence === "indicated") ||
         Number(b.casual) - Number(a.casual) ||
         a.distance - b.distance,
     );

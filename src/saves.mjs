@@ -19,11 +19,13 @@ export function createSavedStore(storage) {
     },
     write(next) {
       ids = next;
-      if (!persistent) return false;
+      // Quota failures can block writes while deletion is still allowed.
+      if (!persistent && ids.length) return false;
       try {
         const target = storage ?? globalThis.localStorage;
         if (ids.length) target.setItem(SAVED_KEY, JSON.stringify(ids));
         else target.removeItem(SAVED_KEY);
+        persistent = true;
         return true;
       } catch {
         persistent = false;

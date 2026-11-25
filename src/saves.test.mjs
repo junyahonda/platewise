@@ -29,3 +29,11 @@ test("session-only saves and removals survive when reads succeed but writes fail
   store.write([]);
   assert.deepEqual(store.read(), []);
 });
+test("clear removes old persistent saves even after a quota failure", () => {
+  const data = new Map([[SAVED_KEY, '["node-1"]']]);
+  const storage = { getItem: key => data.get(key), setItem() { throw Error("quota"); }, removeItem: key => data.delete(key) };
+  const store = createSavedStore(storage);
+  assert.equal(store.write(["node-1", "node-2"]), false);
+  assert.equal(store.write([]), true);
+  assert.deepEqual(createSavedStore(storage).read(), []);
+});

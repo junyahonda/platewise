@@ -305,7 +305,7 @@ function App() {
         (!meatOnly || p.meatConfidence === "indicated") &&
         (!takeawayOnly || p.takeaway),
     )
-    .toSorted((a, b) =>
+    .sort((a, b) =>
       sort === "distance"
         ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
         : Number(b.valueHint) - Number(a.valueHint) ||

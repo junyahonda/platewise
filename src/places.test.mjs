@@ -162,6 +162,13 @@ test("unknown menus remain available when filters are cleared without claiming m
   assert.equal(result[0].valueHint, false);
   assert.match(nearbyQuery(1, 2, 2), /cafe\|deli/);
 });
+test("unknown-menu format clues cannot crowd meat matches out of the shortlist", () => {
+  const unknown = Array.from({ length: 45 }, (_, i) => place({ name: `Unconfirmed cafe ${i}`, amenity: "fast_food", cuisine: "" }, { id: i + 1 }));
+  const meat = place({ name: "Mixed kitchen", cuisine: "american" }, { id: 999 });
+  const results = selectPlaces([...unknown, meat], center, 2);
+  assert.equal(results.length, 40);
+  assert.equal(results[0].id, "node-999");
+});
 test("Directions uses the explicit search origin rather than the external browser's location", () => {
   const url = new URL(normalizePlace(place(), center).mapsUrl);
   assert.equal(url.searchParams.get("origin"), "37.77,-122.42");

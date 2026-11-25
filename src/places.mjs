@@ -182,6 +182,7 @@ export function selectPlaces(elements, center, radius) {
     )
     .sort(
       (a, b) =>
+        Number(b.meat) - Number(a.meat) ||
         Number(b.valueHint) - Number(a.valueHint) ||
         Number(b.meatConfidence === "indicated") - Number(a.meatConfidence === "indicated") ||
         Number(b.casual) - Number(a.casual) ||

@@ -360,7 +360,7 @@ function App() {
     .sort((a, b) =>
       sort === "distance"
         ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
-        : Number(b.valueHint) - Number(a.valueHint) ||
+        : Number(b.meat) - Number(a.meat) || Number(b.valueHint) - Number(a.valueHint) ||
           Number(b.meatConfidence === "indicated") - Number(a.meatConfidence === "indicated") ||
           Number(b.casual) - Number(a.casual) ||
           (a.distance ?? Infinity) - (b.distance ?? Infinity),

@@ -186,7 +186,16 @@ export function selectPlaces(elements, center, radius) {
   return unique.slice(0, 40);
 }
 export function nearbyQuery(latitude, longitude, radius) {
-  return `[out:json][timeout:25];nwr(around:${radius * 1000},${latitude},${longitude})["amenity"~"^(restaurant|fast_food|food_court)$"]["name"];out center tags 500;`;
+  // Indexed bounding-box lookup is much faster than Overpass's around search.
+  // Exact circle membership is checked with distanceKm after normalization.
+  const deltaLat = radius / 110.5;
+  const south = Math.max(-90, latitude - deltaLat), north = Math.min(90, latitude + deltaLat);
+  const maxLat = Math.max(Math.abs(south), Math.abs(north));
+  const deltaLon = maxLat >= 89.9 ? 180 : Math.min(180, radius / (111 * Math.cos(maxLat * Math.PI / 180)));
+  const west = longitude - deltaLon, east = longitude + deltaLon;
+  const boxes = deltaLon === 180 ? [[-180, 180]] : west < -180 ? [[west + 360, 180], [-180, east]] : east > 180 ? [[west, 180], [-180, east - 360]] : [[west, east]];
+  const clauses = boxes.map(([w,e]) => `nwr(${south.toFixed(6)},${w.toFixed(6)},${north.toFixed(6)},${e.toFixed(6)})["amenity"~"^(restaurant|fast_food|food_court)$"]["name"];`).join('');
+  return `[out:json][timeout:25];(${clauses});out tags center 500;`;
 }
 export function savedQuery(ids) {
   const parts = ["node", "way", "relation"]
@@ -197,5 +206,5 @@ export function savedQuery(ids) {
       return numbers.length ? `${type}(id:${numbers.join(",")});` : "";
     })
     .join("");
-  return `[out:json][timeout:25];(${parts});out center tags 12;`;
+  return `[out:json][timeout:25];(${parts});out tags center 12;`;
 }

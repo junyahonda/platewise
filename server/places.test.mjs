@@ -112,10 +112,11 @@ test("casual format clues rank first; distance breaks ties", () => {
   assert.equal(p[0].id, "node-2");
 });
 test("nearby and saved queries are bounded and batched", () => {
-  assert.match(nearbyQuery(1, 2, 5), /around:5000,1,2/);
-  assert.match(nearbyQuery(1, 2, 5), /tags 500/);
+  assert.match(nearbyQuery(1, 2, 5), /nwr\(0\.954751,/);
+  assert.match(nearbyQuery(1, 2, 5), /tags center 500/);
+  assert.equal((nearbyQuery(0,179.99,5).match(/nwr\(/g)||[]).length,2);
   const q = savedQuery(["node-12", "way-34", "node-56"]);
   assert.match(q, /node\(id:12,56\)/);
   assert.match(q, /way\(id:34\)/);
-  assert.match(q, /tags 12/);
+  assert.match(q, /tags center 12/);
 });

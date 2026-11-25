@@ -23,6 +23,7 @@ import {
 import "./styles.css";
 import "./results.css";
 import { searchNearby, fetchSaved } from "./data.mjs";
+import { SAVED_KEY, readSavedIds, changeBookmark } from "./saves.mjs";
 
 const Icon = ({ as: Component, size = 20, ...props }) => (
   <Component size={size} strokeWidth={1.8} aria-hidden="true" {...props} />
@@ -147,22 +148,7 @@ function App() {
   const [expanded, setExpanded] = useState(null),
     [savedPlaces, setSavedPlaces] = useState([]),
     [toast, setToast] = useState("");
-  const [savedIds, setSavedIds] = useState(() => {
-    try {
-      const v = JSON.parse(localStorage.getItem("platewise-osm-saved") || "[]");
-      return Array.isArray(v)
-        ? v
-            .filter(
-              (id) =>
-                typeof id === "string" &&
-                /^(node|way|relation)-[1-9]\d{0,15}$/.test(id),
-            )
-            .slice(0, 12)
-        : [];
-    } catch {
-      return [];
-    }
-  });
+  const [savedIds, setSavedIds] = useState(() => readSavedIds() ?? []);
   const [dialog, setDialog] = useState(
       new URLSearchParams(location.search).get("view") === "privacy"
         ? "privacy"
@@ -172,6 +158,17 @@ function App() {
   const dialogRef = useRef(null),
     requestRef = useRef(0),
     resultsRef = useRef(null);
+  useEffect(() => {
+    const sync = (event) => {
+      if (event.key !== SAVED_KEY && event.key !== null) return;
+      const ids = readSavedIds();
+      if (!ids) return;
+      setSavedIds(ids);
+      setSavedPlaces(current => current.filter(p => ids.includes(p.id)));
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
   useEffect(() => {
     const h = (e) => {
       e.preventDefault();
@@ -247,17 +244,17 @@ function App() {
     }
   }
   function toggleSave(p) {
-    if (!savedIds.includes(p.id) && savedIds.length >= 12) {
+    const current = readSavedIds() ?? savedIds;
+    const save = !savedIds.includes(p.id);
+    if (save && !current.includes(p.id) && current.length >= 12) {
       setToast("You can save 12 places. Remove one first.");
       return;
     }
-    const next = savedIds.includes(p.id)
-      ? savedIds.filter((id) => id !== p.id)
-      : [...savedIds, p.id];
+    const next = changeBookmark(current, p.id, save);
     setSavedIds(next);
     setSavedPlaces((current) => current.filter((p) => next.includes(p.id)));
     try {
-      localStorage.setItem("platewise-osm-saved", JSON.stringify(next));
+      localStorage.setItem(SAVED_KEY, JSON.stringify(next));
     } catch {
       setToast("Browser storage is off. Saves will last only this visit.");
     }
@@ -294,7 +291,7 @@ function App() {
     setSavedIds([]);
     setSavedPlaces([]);
     try {
-      localStorage.removeItem("platewise-osm-saved");
+      localStorage.removeItem(SAVED_KEY);
     } catch {}
     setToast("Saved places cleared.");
   }

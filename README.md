@@ -43,8 +43,12 @@ radius. Editing it cancels a pending search. Failures keep the previous shortlis
 The browser POSTs directly to [VK Maps Overpass](https://maps.mail.ru/osm/tools/overpass/api/interpreter).
 Its [listed public-use policy](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances)
 permits projects without a key; CORS is supported. This suits small personal use,
-not high volume. No parallel queries, automatic retry loops, background polling,
-or bulk collection. Polite per-tab limits: 20 requests/15 minutes, 100/day, and a
+not high volume. A gateway timeout (HTTP 504) retries once after 1.5 seconds,
+using the same query and radius; Cancel/navigation also stop the retry wait.
+Each attempt has a 32-second deadline, so two attempts can take about 66 seconds.
+Other errors, including rate limits, do not retry automatically. No parallel
+queries, retry loops, background polling, or bulk collection.
+Polite per-tab limits: 20 requests/15 minutes, 100/day, and a
 30-second cooldown after provider rate limiting. These are not security controls.
 `VITE_OVERPASS_URL` can select another public endpoint at build time; never put
 keys in `VITE_` variables, since their values are visible in browser code.
@@ -59,7 +63,7 @@ links and attribution on every screen. Google Maps directions need no API key.
 Fonts are self-hosted with included OFL licenses.
 Tab links survive refresh and browser Back/Forward. Search coordinates/results
 are deliberately not persisted, so a full reload starts a new search session.
-Failed/cancelled provider attempts count toward request limits too, because they
+Failed/cancelled provider attempts and the single 504 retry count toward request limits too, because they
 may already have reached the public service. Limit errors state the retry window.
 
 ## GitHub Pages

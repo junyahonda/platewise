@@ -24,6 +24,7 @@ import "./styles.css";
 import "./results.css";
 import { searchNearby, fetchSaved } from "./data.mjs";
 import { SAVED_KEY, createSavedStore, changeBookmark } from "./saves.mjs";
+import { currentLocation } from "./location.mjs";
 
 const Icon = ({ as: Component, size = 20, ...props }) => (
   <Component size={size} strokeWidth={1.8} aria-hidden="true" {...props} />
@@ -200,26 +201,7 @@ function App() {
     try {
       let coords;
       if (example) coords = { latitude: 37.7599, longitude: -122.4148 };
-      else {
-        if (!navigator.geolocation)
-          throw Error(
-            "Location is unavailable in this browser. Try Chrome on your phone, or explore San Francisco.",
-          );
-        coords = await new Promise((resolve, reject) =>
-          navigator.geolocation.getCurrentPosition(
-            (p) => resolve(p.coords),
-            (e) =>
-              reject(
-                Error(
-                  e.code === 1
-                    ? "Location is off. Allow location in Chrome’s site settings, then try again. Or explore San Francisco below."
-                    : "We couldn’t get your location. Check your phone’s location setting and try again.",
-                ),
-              ),
-            { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 },
-          ),
-        );
-      }
+      else coords = await currentLocation();
       if (request !== requestRef.current) return;
       const data = await searchNearby({
         latitude: coords.latitude,

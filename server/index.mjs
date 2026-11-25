@@ -123,7 +123,7 @@ async function overpass(query) {
 }
 app.post("/api/search", async (req, res, next) => {
   try {
-    const { latitude, longitude, radius = 5 } = req.body || {};
+    const { latitude, longitude, radius = 2 } = req.body || {};
     if (
       typeof latitude !== "number" ||
       typeof longitude !== "number" ||

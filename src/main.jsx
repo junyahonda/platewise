@@ -137,7 +137,7 @@ function App() {
     [searched, setSearched] = useState(false),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
-  const [radius, setRadius] = useState(5),
+  const [radius, setRadius] = useState(2),
     [area, setArea] = useState("Near your location"),
     [sort, setSort] = useState("value");
   const [valueOnly, setValueOnly] = useState(true),

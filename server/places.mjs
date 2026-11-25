@@ -1,43 +1,201 @@
-export const MEAT_TYPES = new Set(['barbecue_restaurant', 'steak_house', 'hamburger_restaurant', 'chicken_restaurant', 'chicken_wings_restaurant', 'korean_barbecue_restaurant', 'kebab_shop']);
-const meatPattern = /\b(beef|chicken|pork|steak|brisket|ribs|lamb|carnitas|al pastor|shawarma|kebab|burger|barbecue|bbq|meat)\b/i;
-const portionPattern = /\b(generous|huge|large|big|hefty|massive|heaping|enormous)\s+(?:\w+\s+){0,2}(portions?|servings?|plates?)\b|\b(plenty of food|enough for two|enough to share|leftovers)\b/i;
-const valuePattern = /\b(good|great|excellent|amazing|best)\s+(?:\w+\s+){0,2}value\b|\b(affordable|reasonably priced|bang for (?:your|the) buck|worth (?:the|every) (?:money|penny)|cheap and delicious)\b/i;
-const negationPattern = /\b(not|never|hardly|isn't|aren't|wasn't|weren't|no longer|used to|overpriced|small portions?|tiny portions?|poor value|bad value)\b/i;
-const nonMeatPattern = /\b(vegan|vegetarian|plant[- ]based|meatless|beyond|impossible|mock|faux|no meat)\b/i;
-
+const MEAT_CUISINES = new Set([
+  "burger",
+  "chicken",
+  "fried_chicken",
+  "barbecue",
+  "bbq",
+  "kebab",
+  "shawarma",
+  "steak_house",
+  "steakhouse",
+  "wings",
+  "sausage",
+  "hot_dog",
+]);
+const MIXED_CUISINES = new Set([
+  "mexican",
+  "tex-mex",
+  "chinese",
+  "thai",
+  "vietnamese",
+  "korean",
+  "japanese",
+  "indian",
+  "turkish",
+  "lebanese",
+  "sandwich",
+  "pizza",
+  "american",
+  "brazilian",
+  "greek",
+  "filipino",
+  "peruvian",
+  "ramen",
+  "noodle",
+  "noodles",
+  "african",
+  "ethiopian",
+  "caribbean",
+  "pakistani",
+  "tacos",
+  "burrito",
+  "deli",
+]);
+const CASUAL_CUISINES = new Set([
+  "burger",
+  "chicken",
+  "fried_chicken",
+  "kebab",
+  "shawarma",
+  "sandwich",
+  "pizza",
+  "mexican",
+  "tex-mex",
+  "chinese",
+  "vietnamese",
+  "noodle",
+  "noodles",
+  "ramen",
+  "tacos",
+  "burrito",
+  "deli",
+  "hot_dog",
+]);
+const meatName =
+  /\b(chicken|beef|pork|steak|brisket|ribs|lamb|carnitas|shawarma|kebab|burger|barbecue|bbq|wings|taqueria)\b/i;
+const plantName = /\b(vegan|vegetarian|plant[- ]based|meatless)\b/i;
 export function distanceKm(a, b) {
-  const r = Math.PI / 180;
-  const dLat = (b.latitude - a.latitude) * r, dLng = (b.longitude - a.longitude) * r;
-  return 6371 * 2 * Math.atan2(Math.sqrt(Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * r) * Math.cos(b.latitude * r) * Math.sin(dLng / 2) ** 2), Math.sqrt(1 - (Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * r) * Math.cos(b.latitude * r) * Math.sin(dLng / 2) ** 2)));
+  const rad = Math.PI / 180,
+    dLat = (b.latitude - a.latitude) * rad,
+    dLon = (b.longitude - a.longitude) * rad;
+  const value = Math.min(
+    1,
+    Math.max(
+      0,
+      Math.sin(dLat / 2) ** 2 +
+        Math.cos(a.latitude * rad) *
+          Math.cos(b.latitude * rad) *
+          Math.sin(dLon / 2) ** 2,
+    ),
+  );
+  return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
-function reviewSentences(reviews = []) {
-  return reviews.filter(r => (r.rating ?? 0) >= 4).flatMap(review => {
-    const original = review.text?.text || review.originalText?.text || '';
-    return original.split(/(?<=[.!?])\s+/).filter(text => !negationPattern.test(text)).map(text => ({ text, author: review.authorAttribution?.displayName || 'Google reviewer', authorUrl: review.authorAttribution?.uri, url: review.googleMapsUri, time: review.relativePublishTimeDescription }));
-  });
-}
-export function normalizePlace(place, center) {
-  const reviews = reviewSentences(place.reviews);
-  const portion = reviews.find(r => portionPattern.test(r.text));
-  const value = reviews.find(r => valuePattern.test(r.text));
-  const meatReview = reviews.find(r => meatPattern.test(r.text) && !nonMeatPattern.test(r.text));
-  const meatType = (place.types || []).find(t => MEAT_TYPES.has(t));
-  const meatName = !nonMeatPattern.test(place.displayName?.text || '') && meatPattern.test(place.displayName?.text || '');
-  const price = { PRICE_LEVEL_FREE: 0, PRICE_LEVEL_INEXPENSIVE: 1, PRICE_LEVEL_MODERATE: 2, PRICE_LEVEL_EXPENSIVE: 3, PRICE_LEVEL_VERY_EXPENSIVE: 4 }[place.priceLevel];
+export function normalizePlace(element, center) {
+  const tags = element.tags || {},
+    latitude = element.lat ?? element.center?.lat,
+    longitude = element.lon ?? element.center?.lon;
+  const cuisines = (tags.cuisine || "")
+    .toLowerCase()
+    .split(/[;,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const name = tags.name || tags["name:en"] || "";
+  const plantOnly =
+    tags["diet:vegan"] === "only" ||
+    tags["diet:vegetarian"] === "only" ||
+    tags["diet:meat"] === "no" ||
+    plantName.test(name) ||
+    cuisines.some((c) => ["vegan", "vegetarian"].includes(c));
+  const explicit =
+    tags["diet:meat"] === "yes" ||
+    cuisines.some((c) => MEAT_CUISINES.has(c)) ||
+    meatName.test(name);
+  const likely = cuisines.some((c) => MIXED_CUISINES.has(c));
+  const casual =
+    tags.amenity === "fast_food" ||
+    tags.amenity === "food_court" ||
+    tags.buffet === "yes" ||
+    tags.all_you_can_eat === "yes";
+  const valueHint = casual || cuisines.some((c) => CASUAL_CUISINES.has(c));
+  const location =
+    Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? { latitude, longitude }
+      : null;
   return {
-    id: place.id, name: place.displayName?.text || 'Restaurant', address: place.formattedAddress || '',
-    category: (place.primaryTypeDisplayName?.text || place.primaryType || 'Restaurant').replaceAll('_', ' '),
-    distance: center && place.location ? distanceKm(center, place.location) : null,
-    rating: place.rating ?? null, reviewCount: place.userRatingCount ?? 0, price: price ?? null,
-    open: place.currentOpeningHours?.openNow ?? null,
-    meat: Boolean(meatType || meatReview || meatName),
-    meatReason: meatType ? `${meatType.replaceAll('_', ' ')} listing` : meatReview ? 'Meat mentioned in a review' : meatName ? 'Meat indicated by restaurant name' : 'Menu not verified',
-    portion: portion || null, value: value || null,
-    mapsUrl: place.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.displayName?.text || 'Restaurant')}&query_place_id=${encodeURIComponent(place.id)}`,
-    attributions: place.attributions || [], closed: place.businessStatus && place.businessStatus !== 'OPERATIONAL',
+    id: `${element.type}-${element.id}`,
+    name,
+    category: cuisines.length
+      ? cuisines.map((c) => c.replaceAll("_", " ")).join(" · ")
+      : (tags.amenity || "restaurant").replaceAll("_", " "),
+    location,
+    distance: center && location ? distanceKm(center, location) : null,
+    address:
+      [
+        [tags["addr:housenumber"], tags["addr:street"]]
+          .filter(Boolean)
+          .join(" "),
+        tags["addr:city"],
+      ]
+        .filter(Boolean)
+        .join(", ") || "Street address not mapped",
+    meat: !plantOnly && (explicit || likely),
+    meatConfidence: explicit ? "indicated" : "likely",
+    meatReason: explicit
+      ? "Meat is indicated by cuisine, name, or dietary map tags."
+      : "This cuisine commonly includes meat, but this menu has not been checked.",
+    valueHint,
+    casual,
+    takeaway:
+      ["yes", "only"].includes(tags.takeaway) || tags.amenity === "fast_food",
+    valueReason: casual
+      ? "A fast-food, food-court, or buffet format is a possible value clue."
+      : valueHint
+        ? "This cuisine can offer filling casual meals. That is a general guess, not evidence about this restaurant."
+        : "No useful value clue is mapped for this place.",
+    hours: tags.opening_hours || null,
+    sourceUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`,
+    mapsUrl: location
+      ? `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+      : null,
+    closed:
+      tags.disused === "yes" ||
+      Boolean(
+        tags["disused:amenity"] ||
+          tags["abandoned:amenity"] ||
+          tags["demolished:amenity"],
+      ),
   };
 }
-export function selectPlaces(places, center, radius) {
-  return places.map(p => normalizePlace(p, center)).filter(p => !p.closed && p.meat && p.distance !== null && p.distance <= radius && (p.portion || p.value || (p.price !== null && p.price <= 2 && p.rating >= 4))).sort((a, b) => Number(Boolean(b.portion)) - Number(Boolean(a.portion)) || Number(Boolean(b.value)) - Number(Boolean(a.value)) || (a.price ?? 5) - (b.price ?? 5) || a.distance - b.distance);
+export function selectPlaces(elements, center, radius) {
+  const result = elements
+    .map((e) => normalizePlace(e, center))
+    .filter(
+      (p) =>
+        p.name &&
+        p.meat &&
+        !p.closed &&
+        p.distance !== null &&
+        p.distance <= radius,
+    )
+    .sort(
+      (a, b) =>
+        Number(b.valueHint) - Number(a.valueHint) ||
+        Number(b.casual) - Number(a.casual) ||
+        a.distance - b.distance,
+    );
+  const unique = [];
+  for (const p of result)
+    if (
+      !unique.some(
+        (e) =>
+          e.name.toLowerCase() === p.name.toLowerCase() &&
+          distanceKm(e.location, p.location) < 0.06,
+      )
+    )
+      unique.push(p);
+  return unique.slice(0, 40);
 }
-export const FIELDS = 'id,displayName,formattedAddress,location,primaryType,primaryTypeDisplayName,types,rating,userRatingCount,priceLevel,currentOpeningHours,googleMapsUri,reviews,attributions,businessStatus';
+export function nearbyQuery(latitude, longitude, radius) {
+  return `[out:json][timeout:25];nwr(around:${radius * 1000},${latitude},${longitude})["amenity"~"^(restaurant|fast_food|food_court)$"]["name"];out center tags 500;`;
+}
+export function savedQuery(ids) {
+  const parts = ["node", "way", "relation"]
+    .map((type) => {
+      const numbers = ids
+        .filter((id) => id.startsWith(`${type}-`))
+        .map((id) => id.split("-")[1]);
+      return numbers.length ? `${type}(id:${numbers.join(",")});` : "";
+    })
+    .join("");
+  return `[out:json][timeout:25];(${parts});out center tags 12;`;
+}

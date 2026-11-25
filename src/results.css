@@ -1,0 +1,48 @@
+.value-explanation {
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin-top: 13px;
+}
+.unverified-note {
+  font-size: 9px;
+  margin-top: 7px;
+  color: var(--accent);
+}
+.results {
+  scroll-margin-top: 18px;
+}
+.card-category {
+  display: block;
+  max-width: 310px;
+  overflow-wrap: anywhere;
+}
+.footer > a {
+  text-decoration: none;
+}
+.results-title h2 {
+  font-size: 25px;
+}
+.card-title {
+  flex: 1;
+}
+.rating-row .closed-status {
+  color: var(--danger);
+}
+.results-meta select {
+  max-width: 135px;
+}
+@media (max-width: 599px) {
+  .value-explanation {
+    font-size: 10px;
+  }
+  .unverified-note {
+    font-size: 8px;
+  }
+  .results-title h2 {
+    font-size: 23px;
+  }
+  .card-category {
+    max-width: 235px;
+  }
+}

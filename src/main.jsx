@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import "./results.css";
+import { searchNearby, fetchSaved } from "./data.mjs";
 
 const Icon = ({ as: Component, size = 20, ...props }) => (
   <Component size={size} strokeWidth={1.8} aria-hidden="true" {...props} />
@@ -188,17 +189,6 @@ function App() {
     const t = setTimeout(() => setToast(""), 3500);
     return () => clearTimeout(t);
   }, [toast]);
-  async function api(path, body) {
-    const r = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await r.json();
-    if (!r.ok)
-      throw Error(data.error || "Search is unavailable. Please try again.");
-    return data;
-  }
   async function search(example = false) {
     const request = ++requestRef.current;
     setError("");
@@ -230,7 +220,7 @@ function App() {
         );
       }
       if (request !== requestRef.current) return;
-      const data = await api("/api/search", {
+      const data = await searchNearby({
         latitude: coords.latitude,
         longitude: coords.longitude,
         radius,
@@ -286,7 +276,7 @@ function App() {
     }
     setLoading(true);
     try {
-      const data = await api("/api/saved", { ids: savedIds });
+      const data = await fetchSaved(savedIds);
       if (request === requestRef.current) setSavedPlaces(data.places);
     } catch (e) {
       if (request === requestRef.current) setError(e.message);
@@ -810,7 +800,7 @@ function App() {
                 </li>
               </ol>
               <p className="small-copy">
-                Internet and Devin sign-in are required. Installation varies by
+                Internet is required for search. Installation varies by
                 browser; offline search is not supported.
               </p>
               <button
@@ -868,9 +858,9 @@ function App() {
               <h3>Privacy</h3>
               <p>
                 Location is requested only when you tap “Find food near me.”
-                Coordinates go to our server and the VK Maps Overpass
-                service to find nearby OpenStreetMap places. Platewise does not
-                log or store your search coordinates. Hosting and the map
+                Coordinates go directly from your browser to the VK Maps Overpass
+                service to find nearby OpenStreetMap places. There is no Platewise
+                search server. Platewise does not store your search coordinates. Hosting and the map
                 service may process request information under their own
                 policies.
               </p>

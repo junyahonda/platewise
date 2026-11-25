@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Platewise — Restaurant finder",
   "short_name": "Platewise",
-  "description": "Good food. Generous plates. Nearby.",
+  "description": "Nearby meat-friendly places, with clearly labeled value guesses.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

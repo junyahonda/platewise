@@ -1,52 +1,86 @@
 # Platewise
 
-A phone-first personal restaurant finder using **OpenStreetMap**, with no API key or account needed for restaurant data. React + Vite and a small Express server. No database required.
+A phone-first **static** restaurant finder using OpenStreetMap, React, and Vite.
+No API key, application server, database, or data-provider account is needed.
 
 ## Run
 
-Node 22 or newer:
+Node 22+: `npm ci && npm run build && npm start`
 
-```sh
-npm ci
-npm run build
-npm start
-```
+Open port 3000. `npm start` only serves the built static files; no API routes.
+Use `npm run dev` for hot reloading. Deploy the `dist/` folder anywhere static.
+“Find food near me” requests location; “Explore San Francisco” searches a labeled
+example location using real data. Searches start at 2 km; wider areas can be slow.
 
-The production server listens on port 3000, configurable with `PORT`. Optional settings are in `.env.example`; copy to `.env` only if needed. For development, run `npm start` for the API and `npm run dev` for Vite in another terminal.
+## Honest clues
 
-Tap **Find food near me** to request your phone’s current location. The secondary **Explore San Francisco** action makes a real live search around a clearly labeled example location, not fictional data.
+OpenStreetMap has **no diner reviews, reliable prices, or portion measurements**.
+The owner chose this no-key source with that tradeoff.
 
-## Honest value guesses
+- **Meat indicated:** meat-specific cuisine, name, or dietary map tags.
+- **Meat likely:** cuisines that commonly include meat; menus are unverified.
+- Mapped vegetarian-only/vegan-only places and `diet:meat=no` are excluded;
+  vegetarian options alone do not exclude a place.
+- **Value guess:** fast-food/food-court/buffet formats or selected casual cuisines.
+  This is not restaurant-specific evidence of price, portion size, or quality.
+- Mapped hours are not live opening status. Food art is illustrative, not photos.
 
-OpenStreetMap provides no diner reviews, reliable meal prices, or portion measurements. The owner chose this no-key alternative with that tradeoff.
-
-- **Meat indicated:** meat-specific cuisine, restaurant name, or explicit dietary tags.
-- **Meat likely:** broad cuisine tags that commonly include meat.
-- Mapped vegetarian-only/vegan-only places and explicit `diet:meat=no` are excluded. Vegetarian options alone do not exclude a restaurant.
-- **Value guess:** fast-food/food-court/buffet formats or a selected casual cuisine. Format clues rank first, then distance. This is not evidence about this restaurant’s actual prices, portions, or quality.
-- The UI makes no claims about ratings, reviews, actual prices, known generous portions, or live opening status. Raw mapped hours are labeled as such.
-
-Map tags can be missing or outdated. Menus must be checked. The search covers up to 500 named restaurant/fast-food/food-court elements and shortlists up to 40 meat-compatible places, deduplicating nearby same-name node/building pairs. The cap can omit places in dense areas; coverage is never presented as comprehensive. Distance is straight-line.
+One search checks up to 500 named food places and shortlists up to 40 compatible
+places, deduplicating nearby same-name nodes/buildings. Coverage is not complete,
+especially in dense areas. Distances are straight-line, not travel distances.
 
 ## Provider and privacy
 
-Search uses one bounded Overpass query on [VK Maps’ public service](https://maps.mail.ru/osm/tools/overpass/api/interpreter), whose [listed usage policy](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances) permits projects without a key. This is appropriate for a small personal app, not a high-volume service. No parallel queries, no automatic retry loops, no bulk collection, and no background polling. A global in-memory cap defaults to 100 requests/day and an API burst limit to 20/15 minutes. A 30-second cooldown follows upstream rate limiting. Free public infrastructure can be slow or unavailable; the UI reports that clearly. Larger usage should move to a dedicated provider by setting `OVERPASS_URL`.
+The browser POSTs directly to [VK Maps Overpass](https://maps.mail.ru/osm/tools/overpass/api/interpreter).
+Its [listed public-use policy](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances)
+permits projects without a key; CORS is supported. This suits small personal use,
+not high volume. No parallel queries, automatic retry loops, background polling,
+or bulk collection. Polite per-tab limits: 20 requests/15 minutes, 100/day, and a
+30-second cooldown after provider rate limiting. These are not security controls.
+`VITE_OVERPASS_URL` can select another public endpoint at build time; never put
+keys in `VITE_` variables, since their values are visible in browser code.
 
-Coordinates are sent in POST bodies and not logged or persisted by the application. The provider and host may retain technical request information. Only saved OSM element IDs are stored in browser localStorage; Saved refreshes them with one batched query (up to 12 IDs). API responses use `Cache-Control: no-store`. The application includes no analytics or advertising trackers.
+No coordinates are persisted or sent to a Platewise server. The map provider
+receives the browser’s query, IP, and site origin and may retain request data.
+Hosting processes normal site requests. Only up to 12 saved OSM IDs persist in
+browser localStorage; Saved refreshes them in one batched query. No analytics or
+advertising trackers. Data is **© OpenStreetMap contributors, ODbL**, with source
+links and attribution on every screen. Google Maps directions need no API key.
+Fonts are self-hosted with included OFL licenses.
 
-Data is **© OpenStreetMap contributors, ODbL** with linked attribution on every screen and per-listing source links. External Google Maps directions use coordinates and require no API key. Food art is illustrative, never a photo of the restaurant.
+## GitHub Pages
 
-## Android home screen and deployment
+The public repository is `junyahonda/platewise`. The Pages workflow tests, builds,
+and deploys `dist/` from `main`. In **Settings → Pages**, choose **GitHub Actions**
+and custom domain **food.junyahonda.com**. Actions uses that setting, not CNAME.
+`public/CNAME` also records the intended domain.
 
-Build with `npm run build` and serve `npm start` behind HTTPS. The web manifest includes standalone display, names, start URL, and 192/512 PNG icons, including maskable artwork. In Android Chrome, choose **⋮ → Add to Home screen / Install app**. If Chrome offers `beforeinstallprompt`, the in-app install button uses it; otherwise it shows instructions.
+After setting the domain in GitHub, add one record at GoDaddy or Namecheap:
 
-Devin Apps requires Devin sign-in and blocks service workers, so no worker is registered and no offline functionality is promised. Modern Chrome supports menu installation without a service worker, but the exact install experience must be checked on the owner’s physical phone. The app depends on its managing session staying available; archiving or ending it takes the app offline.
+| Type | Host / Name | Target / Value | TTL |
+| --- | --- | --- | --- |
+| CNAME | food | junyahonda.github.io | Default / Automatic |
+
+No `https://` or `/platewise` in the target. Replace conflicts only for `food`;
+leave root, email, and other records alone. DNS and GitHub’s free certificate can
+take up to 24 hours. Enable **Enforce HTTPS** when the certificate is available.
+Device location requires HTTPS except on localhost. Vite’s `/` base assumes the
+custom domain, not a `/platewise/` project path.
+
+## Android home screen
+
+In Android Chrome, choose **⋮ → Add to Home screen / Install app**. The manifest
+has standalone display and 192/512 PNG icons. The in-app install action uses the
+browser prompt when available, otherwise it shows menu instructions. Search needs
+internet; no offline use is promised. Verify installation on a physical phone.
+
+The temporary Devin preview requires sign-in and its managing session remaining
+available. GitHub Pages is public and independent of the preview session.
 
 ## Checks
 
-```sh
-npm test
-npm run build
-```
+`npm test && npm run build`
 
-Tests cover source normalization, explicit versus likely meat clues, plant-only exclusions, radius filtering, duplicate suppression, distance, no invented review/price/portion data, and bounded batched queries. CI runs both commands on Node 22. The API validates coordinates, radii, and saved IDs, has small JSON limits, rate limiting, provider timeouts, and a restrictive CSP. Fonts are self-hosted with included OFL licenses.
+Tests cover map normalization, meat confidence, exclusions, honest value clues,
+distance/radius filtering, deduplication, bounded queries, direct provider calls,
+input validation, cooldown/recovery, network failures, and timeouts.

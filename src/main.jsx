@@ -199,10 +199,11 @@ function App() {
       setSavedIds(ids);
       setSavedPlaces(current => current.filter(p => ids.includes(p.id)));
       setMissingSavedIds(current => current.filter(id => ids.includes(id)));
+      if (tab === "saved") navigate("saved", { fromHistory: true, ids });
     };
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
-  }, []);
+  }, [tab, searchCenter]);
   useEffect(() => {
     const h = (e) => {
       e.preventDefault();
@@ -292,7 +293,7 @@ function App() {
     setRadius(next);
     setError("");
   }
-  async function navigate(next, { fromHistory = false, refresh = false } = {}) {
+  async function navigate(next, { fromHistory = false, refresh = false, ids = savedIds } = {}) {
     const request = ++requestRef.current;
     cancelMapRequest();
     if (!fromHistory && next !== tab) history.pushState(null, "", `#${next}`);
@@ -302,22 +303,22 @@ function App() {
     setExpanded(null);
     window.scrollTo(0, 0);
     if (next !== "saved") return;
-    if (!savedIds.length) {
+    if (!ids.length) {
       setSavedPlaces([]);
       setMissingSavedIds([]);
       return;
     }
-    const cached = savedIds.map(id => knownPlaces.current.get(id)).filter(Boolean).map(p => ({
+    const cached = ids.map(id => knownPlaces.current.get(id)).filter(Boolean).map(p => ({
       ...p,
       distance: searchCenter && p.location ? distanceKm(searchCenter, p.location) : null,
       mapsUrl: directionsUrl(p.location, searchCenter),
     }));
     setSavedPlaces(cached);
     setMissingSavedIds([]);
-    if (!refresh && cached.length === savedIds.length) return;
+    if (!refresh && cached.length === ids.length) return;
     setLoading(true);
     try {
-      const data = await fetchSaved(savedIds, searchCenter);
+      const data = await fetchSaved(ids, searchCenter);
       if (request === requestRef.current) {
         for (const id of data.missingIds || []) knownPlaces.current.delete(id);
         for (const place of data.places) knownPlaces.current.set(place.id, place);

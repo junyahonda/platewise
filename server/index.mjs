@@ -78,7 +78,7 @@ async function overpass(query) {
   try {
     const response = await fetch(
       process.env.OVERPASS_URL ||
-        "https://overpass.private.coffee/api/interpreter",
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
       {
         method: "POST",
         headers: {

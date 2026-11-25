@@ -868,7 +868,7 @@ function App() {
               <h3>Privacy</h3>
               <p>
                 Location is requested only when you tap “Find food near me.”
-                Coordinates go to our server and the Private.coffee Overpass
+                Coordinates go to our server and the VK Maps Overpass
                 service to find nearby OpenStreetMap places. Platewise does not
                 log or store your search coordinates. Hosting and the map
                 service may process request information under their own
@@ -896,11 +896,11 @@ function App() {
               <p>
                 Search service:{" "}
                 <a
-                  href="https://overpass.private.coffee"
+                  href="https://maps.mail.ru/osm/tools/overpass/"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Private.coffee Overpass
+                  VK Maps Overpass
                 </a>{" "}
                 ·{" "}
                 <a
@@ -912,11 +912,11 @@ function App() {
                 </a>{" "}
                 ·{" "}
                 <a
-                  href="https://private.coffee/privacy"
+                  href="https://help.mail.ru/legal/terms/common/privacy/"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Private.coffee privacy
+                  Map provider privacy
                 </a>
               </p>
               <button className="text-button danger" onClick={clearSaves}>

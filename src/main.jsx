@@ -589,7 +589,7 @@ function App() {
                 <Icon as={ArrowDownWideNarrow} size={14} />
                 <span className="sr-only">Sort restaurants</span>
                 <select value={sort} onChange={(e) => setSort(e.target.value)}>
-                  <option value="value">Value clues first</option>
+                  <option value="value">Meat & value clues</option>
                   <option value="distance" disabled={tab === "saved" && !searchCenter}>
                     Nearest first
                   </option>

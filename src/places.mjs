@@ -193,8 +193,7 @@ export function selectPlaces(elements, center, radius) {
       !unique.some(
         (e) =>
           e.id === p.id || (e.name.trim().toLowerCase() === p.name.trim().toLowerCase() &&
-          (distanceKm(e.location, p.location) < 0.06 ||
-            (e.address !== "Street address not mapped" && e.address === p.address && distanceKm(e.location, p.location) < 0.25))),
+          distanceKm(e.location, p.location) < 0.06),
       )
     )
       unique.push(p);

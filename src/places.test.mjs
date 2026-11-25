@@ -128,6 +128,12 @@ test("duplicate nodes and buildings within 60m appear once", () =>
     ).length,
     1,
   ));
+test("separate same-name branches with only a shared city or street remain distinct", () => {
+  for (const address of [{ "addr:city": "New York" }, { "addr:street": "Broadway" }]) {
+    const results = selectPlaces([place(address), place(address, { id: 124, lat: 37.776 })], center, 2);
+    assert.equal(results.length, 2);
+  }
+});
 test("casual format clues rank first; distance breaks ties", () => {
   const p = selectPlaces(
     [

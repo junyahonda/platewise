@@ -262,8 +262,9 @@ function App() {
     try {
       const data = await fetchSaved(savedIds, searchCenter);
       if (request === requestRef.current) {
-        setSavedPlaces(data.places);
-        setMissingSavedIds(data.missingIds || []);
+        const activeIds = savedStore.current.read();
+        setSavedPlaces(data.places.filter(p => activeIds.includes(p.id)));
+        setMissingSavedIds((data.missingIds || []).filter(id => activeIds.includes(id)));
       }
     } catch (e) {
       if (request === requestRef.current) setError(e.message);
@@ -278,6 +279,11 @@ function App() {
     } else setDialog("install");
   }
   function clearSaves() {
+    if (tab === "saved") {
+      ++requestRef.current;
+      setLoading(false);
+      setError("");
+    }
     setSavedIds([]);
     setSavedPlaces([]);
     setMissingSavedIds([]);

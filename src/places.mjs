@@ -135,6 +135,9 @@ export function normalizePlace(element, center) {
       ]
         .filter(Boolean)
         .join(", ") || "Street address not mapped",
+    duplicateAddress: tags["addr:housenumber"] && tags["addr:street"]
+      ? [tags["addr:housenumber"], tags["addr:street"], tags["addr:unit"] || "", tags["addr:floor"] || ""].join("|").toLowerCase()
+      : null,
     meat: !plantOnly && (explicit || likely),
     meatConfidence: plantOnly ? "excluded" : explicit ? "indicated" : likely ? "likely" : "unknown",
     meatReason: plantOnly
@@ -194,7 +197,8 @@ export function selectPlaces(elements, center, radius) {
       !unique.some(
         (e) =>
           e.id === p.id || (e.name.trim().toLowerCase() === p.name.trim().toLowerCase() &&
-          distanceKm(e.location, p.location) < 0.06),
+          (distanceKm(e.location, p.location) < 0.06 ||
+            (e.duplicateAddress && e.duplicateAddress === p.duplicateAddress && distanceKm(e.location, p.location) < 0.25))),
       )
     )
       unique.push(p);

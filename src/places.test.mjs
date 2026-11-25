@@ -134,6 +134,11 @@ test("separate same-name branches with only a shared city or street remain disti
     assert.equal(results.length, 2);
   }
 });
+test("full matching street addresses identify distant duplicate geometry, not different units", () => {
+  const address = { "addr:housenumber": "20", "addr:street": "Broadway" };
+  assert.equal(selectPlaces([place(address), place(address, { id: 124, type: "way", lat: 37.776 })], center, 2).length, 1);
+  assert.equal(selectPlaces([place({ ...address, "addr:unit": "1" }), place({ ...address, "addr:unit": "2" }, { id: 124, lat: 37.776 })], center, 2).length, 2);
+});
 test("casual format clues rank first; distance breaks ties", () => {
   const p = selectPlaces(
     [

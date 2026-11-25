@@ -26,6 +26,7 @@ import { searchNearby, fetchSaved, cancelMapRequest } from "./data.mjs";
 import { distanceKm, directionsUrl } from "./places.mjs";
 import { SAVED_KEY, createSavedStore, changeBookmark } from "./saves.mjs";
 import { currentLocation } from "./location.mjs";
+import { createDialogHistory } from "./dialog-history.mjs";
 
 const Icon = ({ as: Component, size = 20, ...props }) => (
   <Component size={size} strokeWidth={1.8} aria-hidden="true" {...props} />
@@ -165,12 +166,12 @@ function App() {
   const savedStore = useRef(null);
   if (!savedStore.current) savedStore.current = createSavedStore();
   const [savedIds, setSavedIds] = useState(() => savedStore.current.read());
-  const [dialog, setDialog] = useState(
-      new URLSearchParams(location.search).get("view") === "privacy"
-        ? "privacy"
-        : null,
-    ),
+  const [dialog, setDialog] = useState(null),
     [installEvent, setInstallEvent] = useState(null);
+  const dialogHistory = useRef(null);
+  if (!dialogHistory.current) dialogHistory.current = createDialogHistory(history, setDialog);
+  const openDialog = (name) => dialogHistory.current.open(name);
+  const closeDialog = () => dialogHistory.current.close();
   const dialogRef = useRef(null),
     requestRef = useRef(0),
     errorRef = useRef(null),
@@ -184,10 +185,19 @@ function App() {
     return () => { mode.removeEventListener("change", update); window.removeEventListener("appinstalled", installed); };
   }, []);
   useEffect(() => {
-    const pop = () => navigate(currentTab(), { fromHistory: true });
+    const restored = dialogHistory.current.sync();
+    if (!restored && new URLSearchParams(location.search).get("view") === "privacy") openDialog("privacy");
+  }, []);
+  useEffect(() => {
+    const pop = () => {
+      dialogHistory.current.sync();
+      const next = currentTab();
+      // Closing a modal must not reset results, scroll, or an in-flight search.
+      if (next !== tab) navigate(next, { fromHistory: true });
+    };
     window.addEventListener("popstate", pop);
     return () => window.removeEventListener("popstate", pop);
-  }, [savedIds, searchCenter]);
+  }, [tab, savedIds, searchCenter]);
   useEffect(() => { if (tab === "saved") navigate("saved", { fromHistory: true }); }, []);
   useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ block: "center", behavior: "instant" });
@@ -343,7 +353,7 @@ function App() {
     if (installEvent) {
       await installEvent.prompt();
       setInstallEvent(null);
-    } else setDialog("install");
+    } else openDialog("install");
   }
   function clearSaves() {
     if (tab === "saved") {
@@ -528,7 +538,7 @@ function App() {
                 </div>
                 <button
                   className="method-link"
-                  onClick={() => setDialog("method")}
+                  onClick={() => openDialog("method")}
                 >
                   No mystery scores. See how we pick{" "}
                   <Icon as={ArrowRight} size={14} />
@@ -575,7 +585,7 @@ function App() {
               </div>
               {tab === "discover" && <button
                 className={`filter-button ${filterCount ? "active" : ""}`}
-                onClick={() => setDialog("filters")}
+                onClick={() => openDialog("filters")}
               >
                 <Icon as={SlidersHorizontal} size={17} />
                 Filters{filterCount > 0 && <span>{filterCount}</span>}
@@ -813,7 +823,7 @@ function App() {
               value guesses, with no invented reviews, prices, or portion
               scores.
             </p>
-            <button className="about-row" onClick={() => setDialog("method")}>
+            <button className="about-row" onClick={() => openDialog("method")}>
               <Icon as={Info} />
               <span>How we pick places</span>
               <Icon as={ArrowRight} />
@@ -823,7 +833,7 @@ function App() {
               <span>Add to your home screen</span>
               <Icon as={Plus} />
             </button>}
-            <button className="about-row" onClick={() => setDialog("privacy")}>
+            <button className="about-row" onClick={() => openDialog("privacy")}>
               <Icon as={Heart} />
               <span>Privacy & terms</span>
               <Icon as={ArrowRight} />
@@ -852,7 +862,7 @@ function App() {
           >
             © OpenStreetMap contributors · ODbL
           </a>
-          <button onClick={() => setDialog("privacy")}>Privacy & terms</button>
+          <button onClick={() => openDialog("privacy")}>Privacy & terms</button>
         </footer>
       </main>
       <nav className="bottom-nav" aria-label="Main navigation">
@@ -881,9 +891,9 @@ function App() {
       <dialog
         ref={dialogRef}
         aria-labelledby="dialog-title"
-        onCancel={() => setDialog(null)}
+        onCancel={(e) => { e.preventDefault(); closeDialog(); }}
         onClick={(e) => {
-          if (e.target === dialogRef.current) setDialog(null);
+          if (e.target === dialogRef.current) closeDialog();
         }}
       >
         <div className="dialog-content">
@@ -892,7 +902,7 @@ function App() {
             <button
               className="icon-button"
               aria-label="Close dialog"
-              onClick={() => setDialog(null)}
+              onClick={closeDialog}
             >
               <Icon as={X} />
             </button>
@@ -929,7 +939,7 @@ function App() {
               </p>
               <button
                 className="primary-button"
-                onClick={() => setDialog(null)}
+                onClick={closeDialog}
               >
                 Got it <Icon as={Check} size={18} />
               </button>
@@ -1078,7 +1088,7 @@ function App() {
               ))}
               <button
                 className="primary-button"
-                onClick={() => setDialog(null)}
+                onClick={closeDialog}
               >
                 Show {visible.length} {visible.length === 1 ? "find" : "finds"} <Icon as={ArrowRight} size={18} />
               </button>

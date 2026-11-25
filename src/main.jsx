@@ -23,7 +23,7 @@ import {
 import "./styles.css";
 import "./results.css";
 import { searchNearby, fetchSaved } from "./data.mjs";
-import { SAVED_KEY, readSavedIds, changeBookmark } from "./saves.mjs";
+import { SAVED_KEY, createSavedStore, changeBookmark } from "./saves.mjs";
 
 const Icon = ({ as: Component, size = 20, ...props }) => (
   <Component size={size} strokeWidth={1.8} aria-hidden="true" {...props} />
@@ -150,7 +150,9 @@ function App() {
     [savedPlaces, setSavedPlaces] = useState([]),
     [missingSavedIds, setMissingSavedIds] = useState([]),
     [toast, setToast] = useState("");
-  const [savedIds, setSavedIds] = useState(() => readSavedIds() ?? []);
+  const savedStore = useRef(null);
+  if (!savedStore.current) savedStore.current = createSavedStore();
+  const [savedIds, setSavedIds] = useState(() => savedStore.current.read());
   const [dialog, setDialog] = useState(
       new URLSearchParams(location.search).get("view") === "privacy"
         ? "privacy"
@@ -163,8 +165,7 @@ function App() {
   useEffect(() => {
     const sync = (event) => {
       if (event.key !== SAVED_KEY && event.key !== null) return;
-      const ids = readSavedIds();
-      if (!ids) return;
+      const ids = savedStore.current.read();
       setSavedIds(ids);
       setSavedPlaces(current => current.filter(p => ids.includes(p.id)));
       setMissingSavedIds(current => current.filter(id => ids.includes(id)));
@@ -248,7 +249,7 @@ function App() {
     }
   }
   function toggleSave(p) {
-    const current = readSavedIds() ?? savedIds;
+    const current = savedStore.current.read();
     const save = !savedIds.includes(p.id);
     if (save && !current.includes(p.id) && current.length >= 12) {
       setToast("You can save 12 places. Remove one first.");
@@ -258,9 +259,7 @@ function App() {
     setSavedIds(next);
     setSavedPlaces((current) => current.filter((p) => next.includes(p.id)));
     setMissingSavedIds(current => current.filter(id => next.includes(id)));
-    try {
-      localStorage.setItem(SAVED_KEY, JSON.stringify(next));
-    } catch {
+    if (!savedStore.current.write(next)) {
       setToast("Browser storage is off. Saves will last only this visit.");
     }
   }
@@ -300,9 +299,7 @@ function App() {
     setSavedIds([]);
     setSavedPlaces([]);
     setMissingSavedIds([]);
-    try {
-      localStorage.removeItem(SAVED_KEY);
-    } catch {}
+    savedStore.current.write([]);
     setToast("Saved places cleared.");
   }
   const visible = (tab === "saved" ? savedPlaces : places)

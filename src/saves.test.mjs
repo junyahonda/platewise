@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SAVED_KEY, readSavedIds, changeBookmark } from "./saves.mjs";
+import { SAVED_KEY, readSavedIds, changeBookmark, createSavedStore } from "./saves.mjs";
 
 test("another tab's bookmark survives a change using the latest stored IDs", () => {
   const data = new Map();
@@ -14,4 +14,18 @@ test("another tab's bookmark survives a change using the latest stored IDs", () 
 test("stored IDs are validated and deduplicated; inaccessible storage permits a memory fallback", () => {
   assert.deepEqual(readSavedIds({ getItem: () => '["node-1","node-1","invalid"]' }), ["node-1"]);
   assert.equal(readSavedIds({ getItem() { throw Error("blocked"); } }), null);
+});
+test("session-only saves and removals survive when reads succeed but writes fail", () => {
+  const store = createSavedStore({
+    getItem: () => '["node-1"]',
+    setItem() { throw Error("quota"); },
+    removeItem() { throw Error("blocked"); },
+  });
+  assert.equal(store.write(changeBookmark(store.read(), "node-2", true)), false);
+  store.write(changeBookmark(store.read(), "node-3", true));
+  assert.deepEqual(store.read(), ["node-1", "node-2", "node-3"]);
+  store.write(changeBookmark(store.read(), "node-1", false));
+  assert.deepEqual(store.read(), ["node-2", "node-3"]);
+  store.write([]);
+  assert.deepEqual(store.read(), []);
 });

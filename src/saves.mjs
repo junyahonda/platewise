@@ -9,3 +9,26 @@ export function readSavedIds(storage) {
 export function changeBookmark(ids, id, save) {
   return save ? [...new Set([...ids, id])] : ids.filter(existing => existing !== id);
 }
+export function createSavedStore(storage) {
+  let ids = readSavedIds(storage) ?? [];
+  let persistent = true;
+  return {
+    read() {
+      if (persistent) ids = readSavedIds(storage) ?? ids;
+      return ids;
+    },
+    write(next) {
+      ids = next;
+      if (!persistent) return false;
+      try {
+        const target = storage ?? globalThis.localStorage;
+        if (ids.length) target.setItem(SAVED_KEY, JSON.stringify(ids));
+        else target.removeItem(SAVED_KEY);
+        return true;
+      } catch {
+        persistent = false;
+        return false;
+      }
+    },
+  };
+}

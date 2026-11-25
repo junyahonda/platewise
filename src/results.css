@@ -46,3 +46,37 @@
     max-width: 235px;
   }
 }
+
+/* Operational text and controls stay readable and touch-sized on phones. */
+:root { --text-muted: #5d6357; }
+.card-category, .rating-row, .value-explanation, .why-panel, .mapped-hours,
+.results-meta, .results-meta select, .small-copy, .privacy-hint, .active-filters {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.card-category { text-transform: none; }
+.card-title h3 { font-size: 17px; }
+.evidence-tags > span, .unverified-note { font-size: 12px; }
+.mapped-hours { margin-top: 10px; color: var(--text-muted); overflow-wrap: anywhere; }
+.active-filters { color: var(--sage-deep); margin: 10px 0; }
+.directions-link, .why-button, .text-button, .preview-link .text-button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 4px;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.save-button { min-width: 44px; width: 44px; min-height: 44px; flex-shrink: 0; }
+.radius-select select, .results-meta select { min-height: 44px; min-width: 60px; font-size: 13px; }
+.results-meta { flex-wrap: wrap; gap: 4px 12px; }
+.results-meta select { max-width: 155px; }
+.filter-button { min-height: 44px; font-size: 13px; }
+.preview-link { margin: 12px 0 0; }
+.preview-link .text-button { width: 100%; border: 1px solid var(--border); border-radius: 10px; }
+.card-actions { gap: 10px; padding-top: 4px; flex-wrap: wrap; }
+.card-top { align-items: flex-start; gap: 8px; }
+.food-thumb { width: 48px; height: 52px; }
+.food-thumb .plate-art { width: 70px; height: 65px; }
+.results-disclaimer { font-size: 12px; }

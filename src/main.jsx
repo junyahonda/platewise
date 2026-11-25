@@ -139,6 +139,8 @@ function App() {
     [places, setPlaces] = useState([]),
     [searched, setSearched] = useState(false),
     [loading, setLoading] = useState(false),
+    [searchExample, setSearchExample] = useState(false),
+    [lastLookup, setLastLookup] = useState(null),
     [error, setError] = useState("");
   const [radius, setRadius] = useState(2),
     [searchCenter, setSearchCenter] = useState(null),
@@ -195,9 +197,8 @@ function App() {
     const request = ++requestRef.current;
     setError("");
     setLoading(true);
+    setSearchExample(example);
     setTab("discover");
-    setPlaces([]);
-    setSearched(false);
     try {
       let coords;
       if (example) coords = { latitude: 37.7599, longitude: -122.4148 };
@@ -215,15 +216,17 @@ function App() {
         example ? "San Francisco · real places" : "Near your current location",
       );
       setSearched(true);
+      setLastLookup(new Date());
       setExpanded(null);
-      requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        resultsRef.current?.focus({ preventScroll: true });
         resultsRef.current?.scrollIntoView({
           block: "start",
           behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
             ? "instant"
             : "smooth",
-        }),
-      );
+        });
+      });
     } catch (e) {
       if (request === requestRef.current) setError(e.message);
     } finally {
@@ -325,6 +328,9 @@ function App() {
         </button>
       </header>
       <main>
+        <div className="sr-only" role="status" aria-live="polite">
+          {loading ? tab === "saved" ? "Refreshing saved places." : searchExample ? "Searching San Francisco." : "Finding nearby places." : searched ? `${visible.length} possible finds shown.` : ""}
+        </div>
         {tab === "discover" && (
           <>
             <section className={`hero ${searched ? "compact" : ""}`}>
@@ -337,17 +343,17 @@ function App() {
                 Better <span>finds.</span>
               </h1>
               <p className="hero-copy">
-                Meat-friendly finds. A little more value.
+                Meat-friendly finds. A little more value.{" "}
                 <br />
                 Explore nearby spots with a fuller plate in mind.
               </p>
-              {!searched && (
+              {!searched && !error && (
                 <div className="hero-visual">
                   <div className="visual-note note-one">
                     <span className="note-icon">
                       <Icon as={Heart} size={17} />
                     </span>
-                    Full plate, happy wallet.
+                    Find your next food stop.
                   </div>
                   <PlateArt />
                   <span className="hand-note">your next good meal ↗</span>
@@ -388,32 +394,36 @@ function App() {
                 disabled={loading}
               >
                 <Icon
-                  as={loading ? LoaderCircle : Crosshair}
-                  className={loading ? "spin" : ""}
+                  as={loading && !searchExample ? LoaderCircle : Crosshair}
+                  className={loading && !searchExample ? "spin" : ""}
                 />
-                {loading ? "Finding your next meal…" : "Find food near me"}
+                {loading && !searchExample ? "Finding nearby places…" : "Find food near me"}
                 {!loading && <Icon as={ArrowRight} size={19} />}
               </button>
-              <p className="privacy-hint">
-                No API key. Your location is used for this search, never saved.
-              </p>
-            </section>
-            {error && (
-              <div className="error-box" role="alert">
-                <Icon as={Info} />
-                <span>{error}</span>
-              </div>
-            )}
-            <div className="preview-link">
-              <span>Not sharing your location?</span>
+              <div className="preview-link">
               <button
                 className="text-button"
                 onClick={() => search(true)}
                 disabled={loading}
               >
-                Explore San Francisco <Icon as={ArrowRight} size={15} />
+                {loading && searchExample ? "Searching San Francisco…" : "Explore San Francisco"}
+                <Icon as={loading && searchExample ? LoaderCircle : ArrowRight} className={loading && searchExample ? "spin" : ""} size={15} />
               </button>
-            </div>
+              </div>
+              <p className="privacy-hint">
+                Your location is used for this search, never saved.
+              </p>
+            </section>
+            {error && (
+              <div className="error-box" role="alert">
+                <Icon as={Info} />
+                <div>
+                  <p>{error}</p>
+                  {searched && <p>Previous successful results are kept below.</p>}
+                  <button className="text-button" disabled={loading} onClick={() => search(searchExample)}>Try this search again</button>
+                </div>
+              </div>
+            )}
             {!searched && (
               <section className="promise-section">
                 <div className="section-heading">
@@ -460,6 +470,7 @@ function App() {
             className="results"
             aria-label="Restaurant results"
             ref={resultsRef}
+            tabIndex={-1}
           >
             <div className="demo-banner">
               <Icon as={Info} size={18} />
@@ -477,8 +488,9 @@ function App() {
                   {tab === "saved" ? "SAVED FOR LATER" : area.toUpperCase()}
                 </div>
                 <h2>
-                  {visible.length}{" "}
-                  {visible.length === 1 ? "possible find" : "possible finds"}
+                  {tab === "saved" && loading
+                    ? `${savedIds.length} saved ${savedIds.length === 1 ? "place" : "places"}`
+                    : `${visible.length} ${visible.length === 1 ? "possible find" : "possible finds"}`}
                   <span className="result-dot">.</span>
                 </h2>
               </div>
@@ -490,6 +502,11 @@ function App() {
                 Filters{filterCount > 0 && <span>{filterCount}</span>}
               </button>
             </div>
+            {filterCount > 0 && (
+              <p className="active-filters">Showing: {[valueOnly && "value clues", meatOnly && "stronger meat clues", takeawayOnly && "takeaway"].filter(Boolean).join(" · ")}</p>
+            )}
+            {tab === "discover" && lastLookup && <p className="small-copy">Last lookup: {lastLookup.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. At most 40 places shortlisted.</p>}
+            {tab === "saved" && searchCenter && <p className="small-copy">Distances from your last search: {area}.</p>}
             <div className="results-meta">
               <span>
                 <Icon as={Utensils} size={13} /> Meat clues included
@@ -542,7 +559,7 @@ function App() {
                         <span className="card-category">
                           {p.category}
                           {p.distance !== null && (
-                            <> · {p.distance.toFixed(1)} km</>
+                            <> · {p.distance.toFixed(1)} km straight-line</>
                           )}
                         </span>
                         <h3>{p.name}</h3>
@@ -594,10 +611,12 @@ function App() {
                     <p className="unverified-note">
                       Prices & portion sizes unverified.
                     </p>
+                    <p className="mapped-hours">{p.hours ? `Mapped hours: ${p.hours} — not a live open/closed check.` : "Hours not mapped. Check before going."}</p>
                     <div className="card-actions">
                       <button
                         className="text-button why-button"
                         aria-expanded={expanded === p.id}
+                        aria-label={`Why this find: ${p.name}`}
                         onClick={() =>
                           setExpanded(expanded === p.id ? null : p.id)
                         }
@@ -615,6 +634,7 @@ function App() {
                           href={p.mapsUrl}
                           target="_blank"
                           rel="noreferrer"
+                          aria-label={`Directions to ${p.name}`}
                         >
                           Directions <Icon as={ExternalLink} size={14} />
                         </a>
@@ -661,7 +681,9 @@ function App() {
                     ? "Tap a restaurant’s bookmark to save it here."
                     : "Try clearing filters or searching a wider area. Map tags can be incomplete."}
                 </p>
-                {filterCount > 0 && (
+                {tab === "saved" && !savedIds.length ? (
+                  <button className="text-button" onClick={() => navigate("discover")}>Find restaurants</button>
+                ) : filterCount > 0 && (
                   <button
                     className="text-button"
                     onClick={() => {
@@ -768,6 +790,7 @@ function App() {
       )}
       <dialog
         ref={dialogRef}
+        aria-label={{ install: "Add Platewise to your home screen", method: "How we pick places", privacy: "Privacy and terms", filters: "Filter restaurants" }[dialog] || "Platewise"}
         onCancel={() => setDialog(null)}
         onClick={(e) => {
           if (e.target === dialogRef.current) setDialog(null);

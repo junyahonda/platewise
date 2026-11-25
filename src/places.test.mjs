@@ -92,6 +92,12 @@ test("way and relation center coordinates work", () => {
   assert.ok(p.distance > 0);
   assert.equal(p.id, "way-123");
 });
+test("explicit no-takeaway overrides a fast-food format clue", () => {
+  assert.equal(normalizePlace(place({ amenity: "fast_food", takeaway: "no" })).takeaway, false);
+  assert.equal(normalizePlace(place({ amenity: "fast_food" })).takeaway, true);
+  assert.equal(normalizePlace(place({ takeaway: "yes" })).takeaway, true);
+  assert.equal(normalizePlace(place({ takeaway: "only" })).takeaway, true);
+});
 test("shortlist excludes distant, closed and plant-only places", () =>
   assert.equal(
     selectPlaces(

@@ -140,7 +140,8 @@ export function normalizePlace(element, center) {
     valueHint,
     casual,
     takeaway:
-      ["yes", "only"].includes(tags.takeaway) || tags.amenity === "fast_food",
+      tags.takeaway !== "no" &&
+      (["yes", "only"].includes(tags.takeaway) || tags.amenity === "fast_food"),
     valueReason: casual
       ? "A fast-food, food-court, or buffet format is a possible value clue."
       : valueHint

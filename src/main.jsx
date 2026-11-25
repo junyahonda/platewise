@@ -199,7 +199,7 @@ function App() {
       setSavedIds(ids);
       setSavedPlaces(current => current.filter(p => ids.includes(p.id)));
       setMissingSavedIds(current => current.filter(id => ids.includes(id)));
-      if (tab === "saved") navigate("saved", { fromHistory: true, ids });
+      if (tab === "saved") loadSaved(ids);
     };
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
@@ -293,8 +293,8 @@ function App() {
     setRadius(next);
     setError("");
   }
-  async function navigate(next, { fromHistory = false, refresh = false, ids = savedIds } = {}) {
-    const request = ++requestRef.current;
+  async function navigate(next, { fromHistory = false, refresh = false } = {}) {
+    ++requestRef.current;
     cancelMapRequest();
     if (!fromHistory && next !== tab) history.pushState(null, "", `#${next}`);
     setTab(next);
@@ -303,6 +303,13 @@ function App() {
     setExpanded(null);
     window.scrollTo(0, 0);
     if (next !== "saved") return;
+    return loadSaved(savedIds, { refresh });
+  }
+  async function loadSaved(ids, { refresh = false } = {}) {
+    const request = ++requestRef.current;
+    cancelMapRequest();
+    setLoading(false);
+    setError("");
     if (!ids.length) {
       setSavedPlaces([]);
       setMissingSavedIds([]);
